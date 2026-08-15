@@ -21,5 +21,44 @@
     </div>
 </header>
 
+<!-- Banner Animado de Productos (Carrusel continuo) -->
+<section class="hero-banner">
+    <div class="banner-track" id="bannerTrack">
+      <!-- Generado dinámicamente o imágenes de productos destacados -->
+    </div>
+</section>
+
+<!-- Contenido Principal -->
+<div class="main-layout">
+    
+    <!-- Sidebar Categorías -->
+    <aside class="sidebar">
+      <h3>CATEGORÍAS</h3>
+      <ul class="category-list">
+        <li class="active" onclick="filterByCategory('Todos')">Todos</li>
+        <li onclick="filterByCategory('Electrónica')">Electrónica</li>
+        <li onclick="filterByCategory('Accesorios')">Accesorios</li>
+        <li onclick="filterByCategory('Herramientas')">Herramientas</li>
+      </ul>
+    </aside>
+
+    <!-- Sección de Productos -->
+    <main class="products-container">
+      <div class="toolbar">
+        <div class="tabs">
+          <button class="tab active">Catálogo Completo</button>
+        </div>
+      </div>
+
+      <!-- Grid de Productos -->
+      <div class="product-grid" id="productGrid">
+        <!-- Generado dinámicamente desde script.js -->
+      </div>
+    </main>
+
+</div>
+
+<script src="script.js"></script>
+
 </body>
 </html>
