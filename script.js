@@ -2,14 +2,17 @@
 const products = [
   {
     id: "prod-001",
-    title: "Kit de 118 piezas para Laptop y Celulares",
+    title: "Kit de Herramientas de Precision Profesional para Reparación de Electrónica, PC, Celulares y Consolas",
     category: "Herramientas",
     priceCurrent: 15.00,
     priceOld: 25.00,
-    description: "Kit de 118 Piezas",
+    description: "Kit de herramientas de precisión diseñado para la reparación y mantenimiento de dispositivos electrónicos como teléfonos móviles, laptops, PCs, consolas de videojuegos, tablets y pequeños electrodomésticos. Incluye una amplia variedad de puntas magnéticas, destornillador ergonómico y accesorios esenciales para aperturas seguras sin dañar tus equipos.",
     images: [
       "assets/products/01-Kit_PC/Kit-PC1.png",
-      "assets/products/01-Kit_PC/Kit-PC2.png"
+      "assets/products/01-Kit_PC/Kit-PC2.png",
+      "assets/products/01-Kit_PC/Kit-PC3.png",
+      "assets/products/01-Kit_PC/Kit-PC4.png",
+      "assets/products/01-Kit_PC/Kit-PC5.png"
     ]
   },
   {
@@ -20,8 +23,8 @@ const products = [
     priceOld: 22.00,
     description: "Carga rápida dual USB con indicador LED de batería. Compacto y ligero para viajes.",
     images: [
-      "assets/products/prod-002/main.jpg",
-      "assets/products/prod-002/detail1.jpg"
+      "assets/products/02-Kit_Redes/main.jpg",
+      "assets/products/02-Kit_Redes/detail1.jpg"
     ]
   },
   {
@@ -163,10 +166,6 @@ const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title
         <a href="https://wa.me/${phoneNumber}?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
         💬 Consultar por WhatsApp
         </a>
-
-      <a href="https://wa.me/?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
-        💬 Consultar por WhatsApp
-      </a>
     </div>
   `;
 
