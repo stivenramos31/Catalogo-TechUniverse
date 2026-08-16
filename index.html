@@ -1,64 +1,85 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Catálogo - Tech Universe</title>
-    <link rel="stylesheet" href="styles.css" />
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Catálogo Online</title>
+  <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-    <!-- Header -->
-<header class="navbar">
-    <div class="logo">
-      <span class="logo-icon">❖</span> CATALOGO
-    </div>
-    <div class="search-bar-main">
-      <input type="text" id="searchInput" placeholder="Buscar producto..." />
-    </div>
-    <div class="nav-links">
-      <span>📦 Catálogo</span>
-      <span>🛒 Carrito</span>
-    </div>
-</header>
 
-<!-- Banner Animado de Productos (Carrusel continuo) -->
-<section class="hero-banner">
+  <!-- Header -->
+  <header class="navbar">
+    <div class="navbar-container">
+      <div class="logo">
+        <span class="logo-icon">❖</span> MI TIENDA
+      </div>
+      <div class="search-bar-main">
+        <input type="text" id="searchInput" placeholder="Buscar productos..." />
+      </div>
+      <div class="nav-actions">
+        <button class="nav-btn">📦 Catálogo</button>
+        <button class="nav-btn">🛒 Carrito</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Banner Animado de Productos -->
+  <section class="hero-banner">
     <div class="banner-track" id="bannerTrack">
-      <!-- Generado dinámicamente o imágenes de productos destacados -->
+      <!-- Generado dinámicamente -->
     </div>
-</section>
+  </section>
 
-<!-- Contenido Principal -->
-<div class="main-layout">
+  <!-- Contenido Principal -->
+  <div class="main-layout">
     
-    <!-- Sidebar Categorías -->
+    <!-- Sidebar de Categorías -->
     <aside class="sidebar">
       <h3>CATEGORÍAS</h3>
-      <ul class="category-list">
-        <li class="active" onclick="filterByCategory('Todos')">Todos</li>
-        <li onclick="filterByCategory('Electrónica')">Electrónica</li>
-        <li onclick="filterByCategory('Accesorios')">Accesorios</li>
-        <li onclick="filterByCategory('Herramientas')">Herramientas</li>
+      <ul class="category-list" id="categoryList">
+        <li class="active" onclick="filterByCategory('Todos', this)">Todos</li>
+        <li onclick="filterByCategory('Electrónica', this)">Electrónica</li>
+        <li onclick="filterByCategory('Accesorios', this)">Accesorios</li>
+        <li onclick="filterByCategory('Herramientas', this)">Herramientas</li>
       </ul>
     </aside>
 
     <!-- Sección de Productos -->
     <main class="products-container">
       <div class="toolbar">
-        <div class="tabs">
-          <button class="tab active">Catálogo Completo</button>
+        <div class="catalog-title">
+          <h2>Catálogo de Productos</h2>
+          <span id="productCount">0 productos</span>
+        </div>
+        <div class="sort-by">
+          <select id="sortSelect" onchange="sortProducts(this.value)">
+            <option value="default">Ordenar por</option>
+            <option value="price-low">Precio: Menor a Mayor</option>
+            <option value="price-high">Precio: Mayor a Menor</option>
+            <option value="discount">Mayor Descuento</option>
+          </select>
         </div>
       </div>
 
       <!-- Grid de Productos -->
       <div class="product-grid" id="productGrid">
-        <!-- Generado dinámicamente desde script.js -->
+        <!-- Generado dinámicamente -->
       </div>
     </main>
 
-</div>
+  </div>
 
-<script src="script.js"></script>
+  <!-- Modal / Ventana Emergente de Detalle de Producto -->
+  <div class="modal-overlay" id="productModal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+      <div class="modal-body" id="modalBody">
+        <!-- Contenido inyectado dinámicamente -->
+      </div>
+    </div>
+  </div>
 
+  <script src="script.js"></script>
 </body>
 </html>
