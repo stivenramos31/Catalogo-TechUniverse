@@ -125,7 +125,8 @@ function openModal(productId) {
   const discount = calculateDiscount(product.priceCurrent, product.priceOld);
   
   const images = (product.images && product.images.length > 0) ? product.images : [PLACEHOLDER];
-  const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
+const phoneNumber = "50360114812"; 
+const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
 
   // Crear miniaturas para la galería
   let thumbnailsHTML = '';
@@ -159,6 +160,10 @@ function openModal(productId) {
         ${product.priceOld ? `<span class="price-old" style="font-size:1rem;">$${product.priceOld.toFixed(2)}</span>` : ''}
         ${discount ? `<span class="badge-discount" style="position:static;">${discount} OFF</span>` : ''}
       </div>
+        <a href="https://wa.me/${phoneNumber}?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
+        💬 Consultar por WhatsApp
+        </a>
+
       <a href="https://wa.me/?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
         💬 Consultar por WhatsApp
       </a>
