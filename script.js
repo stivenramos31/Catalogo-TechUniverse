@@ -1,13 +1,16 @@
-// Base de datos de productos con precios anteriores y cálculo de oferta
+// Base de datos de productos con múltiples imágenes en array
 const products = [
   {
     id: "prod-001",
-    title: "Audífonos Bluetooth Inalámbricos TWS",
-    category: "Electrónica",
-    priceCurrent: 18.00,
+    title: "Kit de 118 piezas para Laptop y Celulares",
+    category: "Herramientas",
+    priceCurrent: 15.00,
     priceOld: 25.00,
-    description: "Audífonos Bluetooth 5.3 con sonido estéreo, cancelación de ruido y batería de hasta 20 horas de reproducción.",
-    image: "assets/products/prod-001/main.jpg"
+    description: "Kit de 118 Piezas",
+    images: [
+      "assets/products/01-Kit_PC/Kit-PC1.png",
+      "assets/products/01-Kit_PC/Kit-PC2.png"
+    ]
   },
   {
     id: "prod-002",
@@ -16,7 +19,10 @@ const products = [
     priceCurrent: 15.50,
     priceOld: 22.00,
     description: "Carga rápida dual USB con indicador LED de batería. Compacto y ligero para viajes.",
-    image: "assets/products/prod-002/main.jpg"
+    images: [
+      "assets/products/prod-002/main.jpg",
+      "assets/products/prod-002/detail1.jpg"
+    ]
   },
   {
     id: "prod-003",
@@ -25,18 +31,14 @@ const products = [
     priceCurrent: 10.00,
     priceOld: 14.00,
     description: "Set de 24 puntas imantadas de alta calidad para reparación de laptops, celulares y consolas.",
-    image: "assets/products/prod-003/main.jpg"
-  },
-  {
-    id: "prod-004",
-    title: "Cargador Carga Rápida USB-C 20W",
-    category: "Accesorios",
-    priceCurrent: 8.50,
-    priceOld: 12.00,
-    description: "Adaptador de pared compatible con iPhone y Android para carga rápida ultrasegura.",
-    image: "assets/products/prod-004/main.jpg"
+    images: [
+      "assets/products/prod-003/main.jpg"
+    ]
   }
 ];
+
+// Imagen por defecto en caso de que la ruta local no exista
+const PLACEHOLDER = "https://via.placeholder.com/300x300?text=Sin+Imagen";
 
 let filteredProducts = [...products];
 const productGrid = document.getElementById('productGrid');
@@ -44,7 +46,13 @@ const searchInput = document.getElementById('searchInput');
 const productCount = document.getElementById('productCount');
 const bannerTrack = document.getElementById('bannerTrack');
 
-// Función para calcular porcentaje de descuento
+// Función segura para evitar bucles infinitos en eventos onerror
+function handleImgError(imgElement) {
+  imgElement.onerror = null; // Desactiva el evento para cortar la recarga infinita
+  imgElement.src = PLACEHOLDER;
+}
+
+// Calcular porcentaje de descuento
 function calculateDiscount(current, old) {
   if (!old || old <= current) return null;
   const discount = Math.round(((old - current) / old) * 100);
@@ -57,19 +65,20 @@ function renderProducts(items) {
   productCount.textContent = `${items.length} productos`;
 
   if (items.length === 0) {
-    productGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px 0;">No se encontraron productos en esta categoría.</p>';
+    productGrid.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #64748b; padding: 40px 0;">No se encontraron productos.</p>';
     return;
   }
 
   items.forEach(product => {
     const discount = calculateDiscount(product.priceCurrent, product.priceOld);
+    const mainImg = (product.images && product.images.length > 0) ? product.images[0] : PLACEHOLDER;
     const card = document.createElement('div');
     card.className = 'product-card';
 
     card.innerHTML = `
       ${discount ? `<span class="badge-discount">${discount} OFF</span>` : ''}
       <div class="card-img-wrapper" onclick="openModal('${product.id}')">
-        <img src="${product.image}" alt="${product.title}" onerror="this.src='https://via.placeholder.com/200?text=Sin+Imagen'" />
+        <img src="${mainImg}" alt="${product.title}" onerror="handleImgError(this)" />
       </div>
       <div class="card-body">
         <div>
@@ -89,58 +98,24 @@ function renderProducts(items) {
   });
 }
 
-// Renderizar Banner Animado
+// Renderizar Banner Animado sin bucle de carga
 function renderBanner() {
   bannerTrack.innerHTML = '';
-  const bannerItems = [...products, ...products, ...products];
+  // Repetimos la lista solo para completar el carrusel
+  const bannerItems = [...products, ...products];
 
   bannerItems.forEach(product => {
+    const mainImg = (product.images && product.images.length > 0) ? product.images[0] : PLACEHOLDER;
     const img = document.createElement('img');
-    img.src = product.image;
+    img.src = mainImg;
     img.alt = product.title;
     img.onclick = () => openModal(product.id);
-    img.onerror = function() { this.src = 'https://via.placeholder.com/90?text=Producto'; };
+    img.onerror = function() { handleImgError(this); };
     bannerTrack.appendChild(img);
   });
 }
 
-// Filtro por Búsqueda
-searchInput.addEventListener('input', (e) => {
-  const query = e.target.value.toLowerCase();
-  filteredProducts = products.filter(p => p.title.toLowerCase().includes(query));
-  renderProducts(filteredProducts);
-});
-
-// Filtro por Categoría
-function filterByCategory(category, element) {
-  document.querySelectorAll('.category-list li').forEach(li => li.classList.remove('active'));
-  element.classList.add('active');
-
-  if (category === 'Todos') {
-    filteredProducts = [...products];
-  } else {
-    filteredProducts = products.filter(p => p.category === category);
-  }
-  renderProducts(filteredProducts);
-}
-
-// Ordenar Productos
-function sortProducts(criteria) {
-  if (criteria === 'price-low') {
-    filteredProducts.sort((a, b) => a.priceCurrent - b.priceCurrent);
-  } else if (criteria === 'price-high') {
-    filteredProducts.sort((a, b) => b.priceCurrent - a.priceCurrent);
-  } else if (criteria === 'discount') {
-    filteredProducts.sort((a, b) => {
-      const discA = a.priceOld ? (a.priceOld - a.priceCurrent) : 0;
-      const discB = b.priceOld ? (b.priceOld - b.priceCurrent) : 0;
-      return discB - discA;
-    });
-  }
-  renderProducts(filteredProducts);
-}
-
-// Ventana Emergente (Modal)
+// Ventana Emergente con Galería Múltiple
 function openModal(productId) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
@@ -149,11 +124,31 @@ function openModal(productId) {
   const modalBody = document.getElementById('modalBody');
   const discount = calculateDiscount(product.priceCurrent, product.priceOld);
   
-  const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa obtener más información sobre: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
+  const images = (product.images && product.images.length > 0) ? product.images : [PLACEHOLDER];
+  const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
+
+  // Crear miniaturas para la galería
+  let thumbnailsHTML = '';
+  if (images.length > 1) {
+    thumbnailsHTML = `<div class="gallery-thumbnails">`;
+    images.forEach((imgSrc, index) => {
+      thumbnailsHTML += `
+        <img 
+          src="${imgSrc}" 
+          class="thumb-img ${index === 0 ? 'active' : ''}" 
+          onclick="changeModalImage('${imgSrc}', this)" 
+          onerror="handleImgError(this)"
+        />`;
+    });
+    thumbnailsHTML += `</div>`;
+  }
 
   modalBody.innerHTML = `
-    <div class="modal-img-container">
-      <img src="${product.image}" alt="${product.title}" onerror="this.src='https://via.placeholder.com/200?text=Sin+Imagen'" />
+    <div class="modal-gallery">
+      <div class="modal-main-img">
+        <img id="modalMainImg" src="${images[0]}" alt="${product.title}" onerror="handleImgError(this)" />
+      </div>
+      ${thumbnailsHTML}
     </div>
     <div class="modal-info">
       <span class="card-category">${product.category}</span>
@@ -173,11 +168,41 @@ function openModal(productId) {
   modal.classList.add('active');
 }
 
+// Cambiar la imagen principal al hacer clic en una miniatura
+function changeModalImage(src, thumbElement) {
+  const mainImg = document.getElementById('modalMainImg');
+  if (mainImg) {
+    mainImg.src = src;
+  }
+  document.querySelectorAll('.thumb-img').forEach(el => el.classList.remove('active'));
+  thumbElement.classList.add('active');
+}
+
 function closeModal() {
   document.getElementById('productModal').classList.remove('active');
 }
 
-// Cierre del modal al pulsar fuera de él
+// Búsqueda en tiempo real
+searchInput.addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase();
+  filteredProducts = products.filter(p => p.title.toLowerCase().includes(query));
+  renderProducts(filteredProducts);
+});
+
+// Filtro de categorías
+function filterByCategory(category, element) {
+  document.querySelectorAll('.category-list li').forEach(li => li.classList.remove('active'));
+  element.classList.add('active');
+
+  if (category === 'Todos') {
+    filteredProducts = [...products];
+  } else {
+    filteredProducts = products.filter(p => p.category === category);
+  }
+  renderProducts(filteredProducts);
+}
+
+// Cierre al pulsar fuera del modal
 window.onclick = function(event) {
   const modal = document.getElementById('productModal');
   if (event.target === modal) {
