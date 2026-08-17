@@ -34,8 +34,8 @@ const products = [
     id: "prod-003",
     title: "Kit de Cautín para Soldar de Temperatura Regulable (200°C - 450°C) con Puntas Intercambiables, Extractor de Estaño y Estuche Organizado",
     category: "Herramientas",
-    priceCurrent: 30.00,
-    priceOld: 20.00,
+    priceCurrent: 25.00,
+    priceOld: 35.00,
     description: "Kit de soldadura eléctrica de alta precisión, ideal para reparaciones de electrónica, circuitos impresos (PCB), proyectos DIY, bricolaje y mantenimiento de dispositivos electrónicos. Incluye un cautín de temperatura ajustable de caldeo rápido, extractor de soldadura, soporte de seguridad y accesorios esenciales almacenados en un practico estuche portátil.",
     images: [
       "assets/products/03-Kit_Cautin/Kit-Cautin1.webp",
@@ -43,6 +43,23 @@ const products = [
       "assets/products/03-Kit_Cautin/Kit-Cautin3.webp",
       "assets/products/03-Kit_Cautin/Kit-Cautin4.webp"
     ]
+  },
+  {
+    id: "prod-004",
+    title: "Kit de Soldadura Completo con Multímetro Digital (VC830L), Cautín Regulable, Extractor de Estaño y Accesorios de Electrónica",
+    category: "Herramientas",
+    priceCurrent: 28.00,
+    priceOld: 30.00,
+    description: "Juego de herramientas todo en uno para electrónica, ideal para estudiantes, técnicos, ingenieros y aficionados al bricolaje. Combina un cautín eléctrico de temperatura ajustable con un multímetro digital preciso, destornillador de lápiz de precisión, extractor de soldadura y accesorios esenciales para medición, armado y reparación de circuitos.",
+    images: [
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro1.webp",
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro2.webp",
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro3.webp",
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro4.webp",
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro5.webp",
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro6.webp"
+    ]
+
   }
 ];
 
@@ -137,7 +154,7 @@ function openModal(productId) {
   const discount = calculateDiscount(product.priceCurrent, product.priceOld);
   
   const images = (product.images && product.images.length > 0) ? product.images : [PLACEHOLDER];
-  const phoneNumber = "50360112321"; 
+  const phoneNumber = "50360114812"; 
   const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
 
   // Detectar si estamos en móvil o pantalla pequeña (ancho < 768px)
