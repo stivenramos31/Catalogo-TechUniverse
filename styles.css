@@ -530,3 +530,39 @@ body {
 .thumb-img.active, .thumb-img:hover {
   border-color: var(--primary-color);
 }
+
+/* Descripción recortada y botón Ver más */
+.description-wrapper {
+  position: relative;
+  margin: 4px 0;
+}
+
+.description-text {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.4;
+  transition: all 0.3s ease;
+}
+
+/* Recorta a máximo 2 líneas de texto */
+.description-text.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.btn-toggle-desc {
+  background: none;
+  border: none;
+  color: var(--primary-color);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 2px 0;
+  margin-top: 2px;
+}
+
+.btn-toggle-desc:hover {
+  text-decoration: underline;
+}

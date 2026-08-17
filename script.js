@@ -8,34 +8,40 @@ const products = [
     priceOld: 25.00,
     description: "Kit de herramientas de precisión diseñado para la reparación y mantenimiento de dispositivos electrónicos como teléfonos móviles, laptops, PCs, consolas de videojuegos, tablets y pequeños electrodomésticos. Incluye una amplia variedad de puntas magnéticas, destornillador ergonómico y accesorios esenciales para aperturas seguras sin dañar tus equipos.",
     images: [
-      "assets/products/01-Kit_PC/Kit-PC1.png",
-      "assets/products/01-Kit_PC/Kit-PC2.png",
-      "assets/products/01-Kit_PC/Kit-PC3.png",
-      "assets/products/01-Kit_PC/Kit-PC4.png",
-      "assets/products/01-Kit_PC/Kit-PC5.png"
+      "assets/products/01-Kit_PC/Kit-PC1.webp",
+      "assets/products/01-Kit_PC/Kit-PC2.webp",
+      "assets/products/01-Kit_PC/Kit-PC3.webp",
+      "assets/products/01-Kit_PC/Kit-PC4.webp",
+      "assets/products/01-Kit_PC/Kit-PC5.webp"
     ]
   },
   {
     id: "prod-002",
-    title: "Power Bank Batería Portátil 10000mAh",
-    category: "Accesorios",
-    priceCurrent: 15.50,
-    priceOld: 22.00,
-    description: "Carga rápida dual USB con indicador LED de batería. Compacto y ligero para viajes.",
+    title: "Kit de Herramientas de Red Profesional para Instalación y Mantenimiento de Cableado Estructurado (Tester RJ45/RJ11, Ponchadora y Accesorios con Estuche)",
+    category: "Herramientas",
+    priceCurrent: 25.00,
+    priceOld: 35.00,
+    description: "kit de herramientas para redes e instalaciones de telecomunicaciones. Diseñado para técnicos, ingenieros y entusiastas de la tecnología que necesitan instalar, reparar o probar cableado de red de internet y telefonía (RJ45 / RJ11). Incluye todo lo necesario para ponchar cables, verificar continuidad y organizar instalaciones de manera rápida y profesional. ",
     images: [
-      "assets/products/02-Kit_Redes/main.jpg",
-      "assets/products/02-Kit_Redes/detail1.jpg"
+      "assets/products/02-Kit_Redes/Kit-Red1.webp",
+      "assets/products/02-Kit_Redes/Kit-Red2.webp",
+      "assets/products/02-Kit_Redes/Kit-Red3.webp",
+      "assets/products/02-Kit_Redes/Kit-Red4.webp",
+      "assets/products/02-Kit_Redes/Kit-Red5.webp"
     ]
   },
   {
     id: "prod-003",
-    title: "Juego de Destornilladores de Precisión",
+    title: "Kit de Cautín para Soldar de Temperatura Regulable (200°C - 450°C) con Puntas Intercambiables, Extractor de Estaño y Estuche Organizado",
     category: "Herramientas",
-    priceCurrent: 10.00,
-    priceOld: 14.00,
-    description: "Set de 24 puntas imantadas de alta calidad para reparación de laptops, celulares y consolas.",
+    priceCurrent: 30.00,
+    priceOld: 20.00,
+    description: "Kit de soldadura eléctrica de alta precisión, ideal para reparaciones de electrónica, circuitos impresos (PCB), proyectos DIY, bricolaje y mantenimiento de dispositivos electrónicos. Incluye un cautín de temperatura ajustable de caldeo rápido, extractor de soldadura, soporte de seguridad y accesorios esenciales almacenados en un practico estuche portátil.",
     images: [
-      "assets/products/prod-003/main.jpg"
+      "assets/products/03-Kit_Cautin/Kit-Cautin1.webp",
+      "assets/products/03-Kit_Cautin/Kit-Cautin2.webp",
+      "assets/products/03-Kit_Cautin/Kit-Cautin3.webp",
+      "assets/products/03-Kit_Cautin/Kit-Cautin4.webp"
     ]
   }
 ];
@@ -119,6 +125,7 @@ function renderBanner() {
 }
 
 // Ventana Emergente con Galería Múltiple
+// Ventana Emergente con Galería Múltiple y Descripción Colapsable
 function openModal(productId) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
@@ -128,8 +135,8 @@ function openModal(productId) {
   const discount = calculateDiscount(product.priceCurrent, product.priceOld);
   
   const images = (product.images && product.images.length > 0) ? product.images : [PLACEHOLDER];
-const phoneNumber = "50360114812"; 
-const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
+  const phoneNumber = "50360112321"; 
+  const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
 
   // Crear miniaturas para la galería
   let thumbnailsHTML = '';
@@ -157,19 +164,48 @@ const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title
     <div class="modal-info">
       <span class="card-category">${product.category}</span>
       <h2 style="font-size:1.2rem;">${product.title}</h2>
-      <p style="font-size:0.85rem; color:#64748b;">${product.description}</p>
+      
+      <!-- Contenedor de Descripción Cortada -->
+      <div class="description-wrapper">
+        <p id="modalDescription" class="description-text collapsed">${product.description}</p>
+        <button id="toggleDescBtn" class="btn-toggle-desc" onclick="toggleDescription()">Ver más</button>
+      </div>
+
       <div class="price-container">
         <span class="price-current" style="font-size:1.4rem;">$${product.priceCurrent.toFixed(2)}</span>
         ${product.priceOld ? `<span class="price-old" style="font-size:1rem;">$${product.priceOld.toFixed(2)}</span>` : ''}
         ${discount ? `<span class="badge-discount" style="position:static;">${discount} OFF</span>` : ''}
       </div>
-        <a href="https://wa.me/${phoneNumber}?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
+      <a href="https://wa.me/${phoneNumber}?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
         💬 Consultar por WhatsApp
-        </a>
+      </a>
     </div>
   `;
 
   modal.classList.add('active');
+  
+  // Ocultar el botón "Ver más" si el texto es muy corto
+  setTimeout(() => {
+    const descText = document.getElementById('modalDescription');
+    const toggleBtn = document.getElementById('toggleDescBtn');
+    if (descText.scrollHeight <= 45) {
+      toggleBtn.style.display = 'none';
+    }
+  }, 50);
+}
+
+// Función para expandir/colapsar el texto de descripción
+function toggleDescription() {
+  const descText = document.getElementById('modalDescription');
+  const toggleBtn = document.getElementById('toggleDescBtn');
+
+  if (descText.classList.contains('collapsed')) {
+    descText.classList.remove('collapsed');
+    toggleBtn.textContent = 'Ver menos';
+  } else {
+    descText.classList.add('collapsed');
+    toggleBtn.textContent = 'Ver más';
+  }
 }
 
 // Cambiar la imagen principal al hacer clic en una miniatura
