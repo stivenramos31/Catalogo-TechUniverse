@@ -125,7 +125,9 @@ function renderBanner() {
 }
 
 // Ventana Emergente con Galería Múltiple
-// Ventana Emergente con Galería Múltiple y Descripción Colapsable
+// Abrir Modal de Detalles con scroll bloqueado en el fondo
+// Abrir Modal de Detalles con botón de WhatsApp sticky y scroll de fondo bloqueado
+// Abrir Modal de Productos
 function openModal(productId) {
   const product = products.find(p => p.id === productId);
   if (!product) return;
@@ -138,7 +140,9 @@ function openModal(productId) {
   const phoneNumber = "50360112321"; 
   const whatsappMessage = encodeURIComponent(`¡Hola! Me interesa: ${product.title} ($${product.priceCurrent.toFixed(2)})`);
 
-  // Crear miniaturas para la galería
+  // Detectar si estamos en móvil o pantalla pequeña (ancho < 768px)
+  const isMobile = window.innerWidth <= 768;
+
   let thumbnailsHTML = '';
   if (images.length > 1) {
     thumbnailsHTML = `<div class="gallery-thumbnails">`;
@@ -163,19 +167,25 @@ function openModal(productId) {
     </div>
     <div class="modal-info">
       <span class="card-category">${product.category}</span>
-      <h2 style="font-size:1.2rem;">${product.title}</h2>
+      <h2 style="font-size:1.15rem; line-height: 1.3;">${product.title}</h2>
       
-      <!-- Contenedor de Descripción Cortada -->
+      <!-- Contenedor de Descripción -->
       <div class="description-wrapper">
-        <p id="modalDescription" class="description-text collapsed">${product.description}</p>
-        <button id="toggleDescBtn" class="btn-toggle-desc" onclick="toggleDescription()">Ver más</button>
+        <p id="modalDescription" class="description-text ${isMobile ? 'collapsed' : ''}">
+          ${product.description}
+        </p>
+        <button id="toggleDescBtn" class="btn-toggle-desc" onclick="toggleDescription()">
+          ${isMobile ? 'Ver más' : 'Ver menos'}
+        </button>
       </div>
 
       <div class="price-container">
-        <span class="price-current" style="font-size:1.4rem;">$${product.priceCurrent.toFixed(2)}</span>
-        ${product.priceOld ? `<span class="price-old" style="font-size:1rem;">$${product.priceOld.toFixed(2)}</span>` : ''}
+        <span class="price-current" style="font-size:1.35rem;">$${product.priceCurrent.toFixed(2)}</span>
+        ${product.priceOld ? `<span class="price-old" style="font-size:0.9rem;">$${product.priceOld.toFixed(2)}</span>` : ''}
         ${discount ? `<span class="badge-discount" style="position:static;">${discount} OFF</span>` : ''}
       </div>
+      
+      <!-- Botón de WhatsApp integrado al flujo natural -->
       <a href="https://wa.me/${phoneNumber}?text=${whatsappMessage}" target="_blank" class="btn-whatsapp">
         💬 Consultar por WhatsApp
       </a>
@@ -183,15 +193,113 @@ function openModal(productId) {
   `;
 
   modal.classList.add('active');
-  
-  // Ocultar el botón "Ver más" si el texto es muy corto
+  document.body.classList.add('modal-open');
+
+  // Evaluar si la descripción es corta para ocultar el botón si no es necesario
   setTimeout(() => {
     const descText = document.getElementById('modalDescription');
     const toggleBtn = document.getElementById('toggleDescBtn');
-    if (descText.scrollHeight <= 45) {
-      toggleBtn.style.display = 'none';
+    
+    if (descText && toggleBtn) {
+      // Si el texto entero no supera 60px de alto, no necesita el botón Ver más / Ver menos
+      if (descText.scrollHeight <= 60) {
+        toggleBtn.style.display = 'none';
+      } else {
+        toggleBtn.style.display = 'inline-block';
+      }
     }
-  }, 50);
+  }, 100);
+}
+
+// Función Alternar Ver más / Ver menos
+function toggleDescription() {
+  const descText = document.getElementById('modalDescription');
+  const toggleBtn = document.getElementById('toggleDescBtn');
+
+  if (!descText || !toggleBtn) return;
+
+  if (descText.classList.contains('collapsed')) {
+    descText.classList.remove('collapsed');
+    toggleBtn.textContent = 'Ver menos';
+  } else {
+    descText.classList.add('collapsed');
+    toggleBtn.textContent = 'Ver más';
+  }
+}
+
+// Cerrar Modal y restaurar el scroll de la página
+function closeModal() {
+  const modal = document.getElementById('productModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+  document.body.classList.remove('modal-open');
+}
+
+// Desplegar/contraer descripción del producto
+function toggleDescription() {
+  const descText = document.getElementById('modalDescription');
+  const toggleBtn = document.getElementById('toggleDescBtn');
+
+  if (descText.classList.contains('collapsed')) {
+    descText.classList.remove('collapsed');
+    toggleBtn.textContent = 'Ver menos';
+  } else {
+    descText.classList.add('collapsed');
+    toggleBtn.textContent = 'Ver más';
+  }
+}
+
+// Selector de imágenes de la galería
+function changeModalImage(imgSrc, element) {
+  const mainImg = document.getElementById('modalMainImg');
+  if (mainImg) {
+    mainImg.src = imgSrc;
+  }
+  
+  const thumbnails = document.querySelectorAll('.thumb-img');
+  thumbnails.forEach(thumb => thumb.classList.remove('active'));
+  if (element) {
+    element.classList.add('active');
+  }
+}
+
+// Cerrar Modal y desbloquear scroll
+function closeModal() {
+  const modal = document.getElementById('productModal');
+  if (modal) {
+    modal.classList.remove('active');
+  }
+  document.body.classList.remove('modal-open'); // Desbloquea el scroll
+}
+
+// Alternar entre "Ver más" y "Ver menos" en la descripción
+function toggleDescription() {
+  const descText = document.getElementById('modalDescription');
+  const toggleBtn = document.getElementById('toggleDescBtn');
+
+  if (descText.classList.contains('collapsed')) {
+    descText.classList.remove('collapsed');
+    toggleBtn.textContent = 'Ver menos';
+  } else {
+    descText.classList.add('collapsed');
+    toggleBtn.textContent = 'Ver más';
+  }
+}
+
+// Cambiar imagen principal desde la galería de miniaturas
+function changeModalImage(imgSrc, element) {
+  const mainImg = document.getElementById('modalMainImg');
+  if (mainImg) {
+    mainImg.src = imgSrc;
+  }
+  
+  // Actualizar estado activo en las miniaturas
+  const thumbnails = document.querySelectorAll('.thumb-img');
+  thumbnails.forEach(thumb => thumb.classList.remove('active'));
+  if (element) {
+    element.classList.add('active');
+  }
 }
 
 // Función para expandir/colapsar el texto de descripción
@@ -218,8 +326,10 @@ function changeModalImage(src, thumbElement) {
   thumbElement.classList.add('active');
 }
 
+// Cerrar Modal y desbloquear scroll
 function closeModal() {
   document.getElementById('productModal').classList.remove('active');
+  document.body.classList.remove('modal-open'); // Desbloquea el scroll
 }
 
 // Búsqueda en tiempo real
