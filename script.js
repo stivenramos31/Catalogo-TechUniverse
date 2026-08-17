@@ -56,8 +56,7 @@ const products = [
         "assets/products/04-Kit_Multimetro/Kit-Multimetro2.webp",
         "assets/products/04-Kit_Multimetro/Kit-Multimetro3.webp",
         "assets/products/04-Kit_Multimetro/Kit-Multimetro4.webp",
-        "assets/products/04-Kit_Multimetro/Kit-Multimetro5.webp",
-        "assets/products/04-Kit_Multimetro/Kit-Multimetro6.webp"
+        "assets/products/04-Kit_Multimetro/Kit-Multimetro5.webp"
     ]
 
   }
