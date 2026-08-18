@@ -58,7 +58,36 @@ const products = [
         "assets/products/04-Kit_Multimetro/Kit-Multimetro4.webp",
         "assets/products/04-Kit_Multimetro/Kit-Multimetro5.webp"
     ]
-
+  },
+  {
+    id: "prod-005",
+    title: "Hub USB 8 en 1 Multipuerto de Aluminio (Conector Doble USB-C y USB-A Dual)",
+    category: "Electrónica",
+    priceCurrent: 12.00,
+    priceOld: 15.00,
+    description: "Maximiza la conectividad de tu laptop, PC o tablet con este concentrador multipuerto 8 en 1. Diseñado con un conector híbrido dual (USB-A y USB-C), es compatible tanto con equipos modernos como con puertos USB tradicionales. Su chasis de aluminio ligero y resistente disipa el calor eficientemente y ofrece un diseño compacto ideal para el trabajo diario o viajes.",
+    images: [
+        "assets/products/05-Hub_8en1/Hub1.webp",
+        "assets/products/05-Hub_8en1/Hub2.webp",
+        "assets/products/05-Hub_8en1/Hub3.webp",
+        "assets/products/05-Hub_8en1/Hub4.webp",
+        "assets/products/05-Hub_8en1/Hub5.webp"
+    ]
+  },
+  {
+    id: "prod-006",
+    title: "Combo Reparación y Recuperación SSD: Cable Adaptador USB 3.0 a SATA + Tarjeta Adaptadora M.2 NGFF / mSATA a SATA 2.5",
+    category: "Electrónica",
+    priceCurrent: 12.00,
+    priceOld: 15.00,
+    description: "Kit esencial de conversión y diagnóstico para técnicos, estudiantes de informática y entusiastas del hardware. Este combo incluye dos herramientas indispensables para conectar, reparar o respaldar datos de unidades de almacenamiento SATA y SSD de diferentes formatos.",
+    images: [
+        "assets/products/06-USB_SATA/USB_SATA1.webp",
+        "assets/products/06-USB_SATA/USB_SATA2.webp",
+        "assets/products/06-USB_SATA/USB_SATA3.webp",
+        "assets/products/06-USB_SATA/USB_SATA4.webp",
+        "assets/products/06-USB_SATA/USB_SATA5.webp"
+    ]
   }
 ];
 

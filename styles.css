@@ -450,9 +450,6 @@ body.modal-open {
   margin-top: 8px;
   transition: background 0.2s ease;
 }
-.btn-whatsapp:hover {
-  background: #1eb954;
-}
 
 .btn-whatsapp-sticky {
   position: sticky;
@@ -541,11 +538,9 @@ body.modal-open {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-
 .description-text.collapsed {
   display: -webkit-box;
   -webkit-line-clamp: 3;
-  line-clamp: 3; /* Agrega esta línea */
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
