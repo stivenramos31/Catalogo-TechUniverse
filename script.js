@@ -79,7 +79,7 @@ const products = [
     title: "Combo Reparación y Recuperación SSD: Cable Adaptador USB 3.0 a SATA + Tarjeta Adaptadora M.2 NGFF / mSATA a SATA 2.5",
     category: "Electrónica",
     priceCurrent: 12.00,
-    priceOld: 15.00,
+    priceOld: 14.00,
     description: "Kit esencial de conversión y diagnóstico para técnicos, estudiantes de informática y entusiastas del hardware. Este combo incluye dos herramientas indispensables para conectar, reparar o respaldar datos de unidades de almacenamiento SATA y SSD de diferentes formatos.",
     images: [
         "assets/products/06-USB_SATA/USB_SATA1.webp",
@@ -87,6 +87,19 @@ const products = [
         "assets/products/06-USB_SATA/USB_SATA3.webp",
         "assets/products/06-USB_SATA/USB_SATA4.webp",
         "assets/products/06-USB_SATA/USB_SATA5.webp"
+    ]
+  },
+  {
+    id: "prod-007",
+    title: "Estación de Soldar Digital 2 en 1 Modelo 8898: Cautín Regulable + Pistola de Aire Caliente para Retrabajo SMD",
+    category: "Herramientas",
+    priceCurrent: 55.00,
+    priceOld: 65.00,
+    description: "Estación de soldadura digital doble 2 en 1 de alto rendimiento, ideal para reparación de tarjetas electrónicas, celulares, laptops y componentes SMD/SMT. Combina en una sola unidad compacta un cautín tipo lápiz de alta precisión y una pistola de aire caliente para desoldar, con controles de temperatura independientes y pantallas LED digitales.",
+    images: [
+        "assets/products/07-Estacion_Calor/Estacion1.webp",
+        "assets/products/07-Estacion_Calor/Estacion2.webp",
+        "assets/products/07-Estacion_Calor/Estacion3.webp"
     ]
   }
 ];
