@@ -1,6 +1,6 @@
-/** @type {import('next').NextConfig} */
+// next.config.mjs
 const nextConfig = {
-  /* config options here */
+  allowedDevOrigins: ['192.168.56.1'],
 };
 
 export default nextConfig;

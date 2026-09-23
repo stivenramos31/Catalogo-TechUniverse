@@ -1,69 +1,72 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { supabase } from "../lib/supabase";
+import ProductCard from "../components/store/ProductCard";
 
 export default function Home() {
+  const [productos, setProductos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    async function cargarDatos() {
+      try {
+        const { data, error } = await supabase
+          .from("productos")
+          .select("*")
+          .limit(4);
+
+        if (!error && data) setProductos(data);
+      } catch (err) {
+        console.error("Error al cargar productos", err);
+      } finally {
+        setCargando(false);
+      }
+    }
+    cargarDatos();
+  }, []);
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.js
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="bg-[#f5f7fa] min-h-screen pb-12">
+      <div className="max-w-[1440px] mx-auto px-4 mt-6">
+        <section className="bg-[#0f3faf] rounded-2xl overflow-hidden shadow-lg mb-8 flex flex-col md:flex-row relative">
+          <div className="p-8 md:p-12 z-10 w-full md:w-1/2 flex flex-col justify-center">
+            <h1 className="text-3xl md:text-5xl font-black text-white leading-tight mb-4 drop-shadow-md">
+              TECNOLOGÍA Y <span className="text-yellow-400">HERRAMIENTAS</span><br/>
+              <span className="text-xl md:text-3xl font-medium tracking-wide">para tus proyectos</span>
+            </h1>
+            <p className="text-blue-100 text-sm md:text-base mb-6">Calidad, variedad y los mejores precios.</p>
+            <Link href="/catalogo" className="bg-yellow-400 hover:bg-yellow-500 text-blue-900 font-bold px-6 py-3 rounded-full w-max shadow-md transition-transform hover:scale-105">
+              Ver catálogo
+            </Link>
+          </div>
+          <div className="absolute top-0 right-0 w-full md:w-1/2 h-full opacity-30 md:opacity-100 bg-gradient-to-l from-transparent to-[#0f3faf] md:from-transparent">
+             <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&q=80" alt="Banner" className="w-full h-full object-cover mix-blend-overlay" />
+          </div>
+        </section>
+
+        <section className="mb-10">
+          <div className="bg-[#dc2626] rounded-t-xl px-4 py-3 flex items-center justify-between text-white">
+             <div className="flex items-center gap-2">
+                <span className="text-xl font-bold">⚡ OFERTAS FLASH</span>
+             </div>
+          </div>
+          <div className="bg-white border border-[#e2e8f0] border-t-0 rounded-b-xl p-4 shadow-sm min-h-[200px]">
+            {cargando ? (
+              <p className="text-center text-gray-500 py-10">Cargando catálogo...</p>
+            ) : productos.length > 0 ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                {productos.map((prod) => (
+                  <ProductCard key={prod.id} producto={prod} />
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-10">Aún no hay productos en la base de datos.</p>
+            )}
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
