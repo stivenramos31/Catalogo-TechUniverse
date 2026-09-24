@@ -5,6 +5,9 @@ import { supabase } from "../../lib/supabase";
 import ModuloCategorias from "./components/ModuloCategorias";
 import ModuloProductos from "./components/ModuloProductos";
 import ModuloPerfil from "./components/ModuloPerfil";
+import ModuloOfertas from "./components/ModuloOfertas";
+import ModuloCotizaciones from "./components/ModuloCotizaciones";
+import ModuloComentarios from "./components/ModuloComentarios";
 
 export default function AdminDashboard() {
   const [session, setSession] = useState(null);
@@ -119,10 +122,9 @@ export default function AdminDashboard() {
       <main className="flex-1 p-4 md:p-8 overflow-y-auto">
         {vistaActiva === 'productos' && <ModuloProductos productos={productos} categorias={categorias} recargarDatos={cargarDatosGrupales} />}
         {vistaActiva === 'categorias' && <ModuloCategorias categorias={categorias} productos={productos} recargarDatos={cargarDatosGrupales} />}
-        
-        {vistaActiva === 'ofertas' && <div className="p-10 text-center font-bold text-gray-400">Módulo de Ofertas en construcción...</div>}
-        {vistaActiva === 'cotizaciones' && <div className="p-10 text-center font-bold text-gray-400">Módulo de Cotizaciones en construcción...</div>}
-        {vistaActiva === 'comentarios' && <div className="p-10 text-center font-bold text-gray-400">Módulo de Comentarios en construcción...</div>}
+        {vistaActiva === 'ofertas' && <ModuloOfertas productos={productos} />}
+        {vistaActiva === 'cotizaciones' && <ModuloCotizaciones />}
+        {vistaActiva === 'comentarios' && <ModuloComentarios productos={productos} />}
         {vistaActiva === 'perfil' && <ModuloPerfil session={session} perfil={perfil} actualizarPerfilLocal={setPerfil} />}
       </main>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 
+// ⚡ ALTA COMPRESIÓN Y REDIMENSIONADO A WEBP
 const convertirAWebP = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -11,11 +12,29 @@ const convertirAWebP = (file) => {
       const img = new Image();
       img.src = event.target.result;
       img.onload = () => {
+        // 1. Límite de 1000px para mantener nitidez en catálogo reduciendo el peso drásticamente
+        const MAX_DIMENSION = 1000;
+        let ancho = img.width;
+        let alto = img.height;
+
+        // 2. Escalado proporcional (tanto para fotos horizontales como verticales)
+        if (ancho > alto && ancho > MAX_DIMENSION) {
+          alto = Math.round((alto * MAX_DIMENSION) / ancho);
+          ancho = MAX_DIMENSION;
+        } else if (alto > MAX_DIMENSION) {
+          ancho = Math.round((ancho * MAX_DIMENSION) / alto);
+          alto = MAX_DIMENSION;
+        }
+
         const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
+        canvas.width = ancho;
+        canvas.height = alto;
         const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
+        
+        // 3. Dibujamos la imagen con el nuevo tamaño optimizado
+        ctx.drawImage(img, 0, 0, ancho, alto);
+        
+        // 4. Exportamos a WebP al 75% de calidad (0.75)
         canvas.toBlob((blob) => {
           if (blob) {
             const nuevoNombre = file.name.replace(/\.[^/.]+$/, "") + ".webp";
@@ -24,9 +43,11 @@ const convertirAWebP = (file) => {
           } else {
             reject(new Error("Falló la conversión"));
           }
-        }, "image/webp", 0.8);
+        }, "image/webp", 0.75);
       };
+      img.onerror = (err) => reject(err);
     };
+    reader.onerror = (err) => reject(err);
   });
 };
 
@@ -144,7 +165,15 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         urlsNuevas.push(data.publicUrl);
       }
       const fotosFinales = [...imagenesExistentes, ...urlsNuevas];
-      const slugGenerado = nuevoProducto.slug || nuevoProducto.titulo.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, '-');
+      
+      // ⚡ Limpieza profunda del slug para evitar caracteres especiales en la URL
+      const slugGenerado = (nuevoProducto.slug || nuevoProducto.titulo)
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s-]/g, "")
+        .trim()
+        .replace(/\s+/g, '-');
 
       const datosGuardar = {
         titulo: nuevoProducto.titulo, descripcion: nuevoProducto.descripcion,
@@ -286,7 +315,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
               </div>
 
               <div className="bg-blue-50 p-6 rounded-2xl border-2 border-blue-100 mt-6">
-                <label className="block text-sm font-black text-blue-900 mb-3">📸 Galería de Imágenes (Máx 5)</label>
+                <label className="block text-sm font-black text-blue-900 mb-3">📸 Galería de Imágenes (Máx 5 - Compresión Automática WebP)</label>
                 <input type="file" accept="image/*" multiple onChange={manejarSeleccionArchivos} className="w-full text-sm file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-black file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
                 
                 {imagenesExistentes.length > 0 && (
@@ -318,7 +347,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                   Cancelar
                 </button>
                 <button type="submit" disabled={procesando} className="w-2/3 bg-[#0f3faf] text-white font-black py-4 rounded-xl hover:bg-blue-800 transition-colors text-lg shadow-xl shadow-blue-200 flex justify-center items-center gap-2">
-                  {procesando ? "Guardando datos y fotos..." : (productoEditando ? "Guardar Cambios" : "Publicar Producto")}
+                  {procesando ? "Comprimiendo y guardando..." : (productoEditando ? "Guardar Cambios" : "Publicar Producto")}
                 </button>
               </div>
             </form>

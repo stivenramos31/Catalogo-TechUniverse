@@ -7,7 +7,9 @@ import { useCart } from "../../../context/CartContext";
 
 export default function DetalleProducto({ params }) {
   const resolvedParams = use(params);
-  const id = resolvedParams.id; 
+  
+  // ⚡ Decodificamos la URL para limpiar caracteres especiales
+  const id = decodeURIComponent(resolvedParams.id); 
 
   const { cart, agregarAlCarrito, eliminarDelCarrito } = useCart(); 
   
@@ -31,9 +33,19 @@ export default function DetalleProducto({ params }) {
     cargarProducto();
   }, [id]);
 
-  // ⚡ LA CORRECCIÓN: Convertimos ambos IDs a texto para que coincidan siempre
-  const productoEnCarrito = cart?.find(item => String(item.id) === String(producto?.id));
-  const cantidadActual = productoEnCarrito ? productoEnCarrito.cantidad : 0;
+  // ⚡ 1. Imprimimos el carrito en consola para ver su estructura real
+  console.log("🐛 Debugging Cart:", cart);
+
+  // ⚡ 2. Búsqueda defensiva: por si el id está directo o anidado dentro de 'producto'
+  const productoEnCarrito = cart?.find(item => 
+    String(item.id) === String(producto?.id) || 
+    String(item.producto?.id) === String(producto?.id)
+  );
+
+  // ⚡ 3. Si no existe la propiedad 'cantidad', calculamos cuántas veces aparece en el arreglo
+  const cantidadActual = productoEnCarrito 
+    ? (productoEnCarrito.cantidad || cart.filter(item => String(item.id) === String(producto?.id)).length) 
+    : 0;
 
   const urlActual = typeof window !== 'undefined' ? window.location.href : '';
   const mensajeCompartir = `¡Mira este increíble producto en TECH UNIVERSE! ${producto?.titulo}`;
