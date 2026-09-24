@@ -85,6 +85,7 @@ export function CartProvider({ children }) {
   return (
     <CartContext.Provider value={{ 
       cart, 
+      carrito: cart, // ⚡ Alias de seguridad para compatibilidad con archivos antiguos
       agregarAlCarrito, 
       eliminarDelCarrito, 
       vaciarCarrito, 
