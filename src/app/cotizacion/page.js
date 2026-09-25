@@ -12,7 +12,7 @@ export default function CotizacionRedirect() {
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center font-bold text-gray-400">
-      Redirigiendo a tu cotización...
+      Redirigiendo al carrito...
     </div>
   );
 }
