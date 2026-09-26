@@ -10,6 +10,7 @@ import ModuloCotizaciones from "./components/ModuloCotizaciones";
 import ModuloComentarios from "./components/ModuloComentarios";
 import ModuloCupones from "./components/ModuloCupones";
 import ModuloPerfil from "./components/ModuloPerfil";
+import ModuloVisitas from "./components/ModuloVisitas";
 
 export default function AdminDashboard() {
   const [session, setSession] = useState(null);
@@ -173,7 +174,7 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col md:flex-row relative">
+    <div className="h-dvh overflow-hidden bg-gray-100 flex flex-col md:flex-row relative">
       
       {/* 📱 BARRA SUPERIOR COMPACTA (Solo visible en Android / Móviles) */}
       {/* 📱 BARRA SUPERIOR COMPACTA (Botón ☰ a la izquierda, mismo lado donde abre el menú) */}
@@ -195,28 +196,37 @@ export default function AdminDashboard() {
           </span>
         </div>
 
-        {/* Derecha: Tu Nombre y Foto de Perfil */}
-        <div className="flex items-center gap-2.5 min-w-0">
+        {/* Derecha: Tocar tu Foto o Nombre abre Configuración */}
+        <button
+          type="button"
+          onClick={() => cambiarVista("perfil")}
+          title="Abrir Configuración de Perfil"
+          className={`flex items-center gap-2.5 min-w-0 p-1.5 rounded-2xl transition-all active:scale-95 ${
+            vistaActiva === "perfil" ? "bg-white/20 ring-2 ring-white" : "hover:bg-blue-800/60"
+          }`}
+        >
           <div className="text-right min-w-0">
             <h2 className="font-black text-xs sm:text-sm truncate leading-tight">
               {perfil?.nombre_completo || "Administrador"}
             </h2>
-            <span className="text-[10px] text-blue-200 font-bold block">
-              {perfil?.rol || "Superadmin"}
+            <span className="text-[10px] text-blue-200 font-bold flex items-center justify-end gap-1">
+              ⚙️ {perfil?.rol || "Superadmin"}
             </span>
           </div>
-          {perfil?.avatar_url ? (
-            <img
-              src={perfil.avatar_url}
-              alt="Avatar"
-              className="w-9 h-9 rounded-full object-cover border-2 border-white bg-white flex-shrink-0"
-            />
-          ) : (
-            <div className="w-9 h-9 rounded-full border-2 border-white bg-blue-900 flex items-center justify-center text-lg flex-shrink-0">
-              👨‍💻
-            </div>
-          )}
-        </div>
+          <div className="relative flex-shrink-0">
+            {perfil?.avatar_url ? (
+              <img
+                src={perfil.avatar_url}
+                alt="Avatar"
+                className="w-9 h-9 rounded-full object-cover border-2 border-white bg-white"
+              />
+            ) : (
+              <div className="w-9 h-9 rounded-full border-2 border-white bg-blue-900 flex items-center justify-center text-lg">
+                👨‍💻
+              </div>
+            )}
+          </div>
+        </button>
 
       </header>
 
@@ -230,35 +240,61 @@ export default function AdminDashboard() {
 
       {/* 💻📱 BARRA LATERAL (Oculta en Android hasta presionar ☰ | Fija en PC) */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-[#0f3faf] text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out md:relative md:translate-x-0 flex-shrink-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-72 h-dvh bg-[#0f3faf] text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 flex-shrink-0 ${
           menuMovilAbierto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="p-6 border-b border-blue-800 flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            {perfil?.avatar_url ? (
-              <img
-                src={perfil.avatar_url}
-                alt="Avatar"
-                className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-md bg-white flex-shrink-0"
-              />
-            ) : (
-              <div className="w-12 h-12 rounded-full border-2 border-white shadow-md bg-blue-900 flex items-center justify-center text-2xl flex-shrink-0">
-                👨‍💻
-              </div>
-            )}
-            <div className="min-w-0">
-              <h2 className="font-black text-base truncate">{perfil?.nombre_completo || "Administrador"}</h2>
-              <span className="text-[11px] bg-blue-800 text-blue-200 px-2.5 py-0.5 rounded-full font-bold">
-                {perfil?.rol || "Superadmin"}
+        <div className="p-4 border-b border-blue-800 flex items-center justify-between gap-2">
+          {/* Al presionar tu foto o nombre se abre Configuración */}
+          <button
+            type="button"
+            onClick={() => cambiarVista("perfil")}
+            title="Ir a Configuración y Contactos"
+            className={`flex items-center gap-3 min-w-0 flex-1 text-left p-2 rounded-2xl transition-all group cursor-pointer ${
+              vistaActiva === "perfil"
+                ? "bg-white text-[#0f3faf] shadow-md"
+                : "hover:bg-blue-800/70 text-white"
+            }`}
+          >
+            <div className="relative flex-shrink-0">
+              {perfil?.avatar_url ? (
+                <img
+                  src={perfil.avatar_url}
+                  alt="Avatar"
+                  className={`w-12 h-12 rounded-full object-cover border-2 shadow-md bg-white ${
+                    vistaActiva === "perfil" ? "border-[#0f3faf]" : "border-white"
+                  }`}
+                />
+              ) : (
+                <div className="w-12 h-12 rounded-full border-2 border-white shadow-md bg-blue-900 flex items-center justify-center text-2xl">
+                  👨‍💻
+                </div>
+              )}
+              <span className="absolute -bottom-0.5 -right-0.5 bg-blue-600 text-white text-[10px] w-5 h-5 rounded-full flex items-center justify-center border border-white shadow-xs">
+                ⚙️
               </span>
             </div>
-          </div>
+
+            <div className="min-w-0 flex-1">
+              <h2 className="font-black text-base truncate leading-tight">
+                {perfil?.nombre_completo || "Administrador"}
+              </h2>
+              <span
+                className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold inline-block mt-1 ${
+                  vistaActiva === "perfil"
+                    ? "bg-blue-100 text-[#0f3faf]"
+                    : "bg-blue-800 text-blue-200 group-hover:bg-blue-700"
+                }`}
+              >
+                {perfil?.rol || "Superadmin"} • Configurar
+              </span>
+            </div>
+          </button>
 
           {/* Botón X para cerrar en Android */}
           <button
             onClick={() => setMenuMovilAbierto(false)}
-            className="md:hidden text-blue-200 hover:text-white p-1.5 rounded-lg bg-blue-800/60"
+            className="md:hidden text-blue-200 hover:text-white p-2 rounded-lg bg-blue-800/60 flex-shrink-0"
           >
             ✕
           </button>
@@ -283,8 +319,8 @@ export default function AdminDashboard() {
           <button onClick={() => cambiarVista('cupones')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'cupones' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
             <span className="text-lg">💸</span> Cupones
           </button>
-          <button onClick={() => cambiarVista('perfil')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'perfil' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">⚙️</span> Configuración
+          <button onClick={() => cambiarVista('visitas')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'visitas' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
+            <span className="text-lg">🌐</span> Visitas IP
           </button>
         </nav>
 
@@ -306,14 +342,15 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* Área Principal de Módulos */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto">
+      {/* Área Principal de Módulos (Solo esta zona se alarga y hace scroll) */}
+      <main className="flex-1 h-full overflow-y-auto p-4 md:p-8">
         {vistaActiva === 'productos' && <ModuloProductos productos={productos} categorias={categorias} recargarDatos={cargarDatosGrupales} />}
         {vistaActiva === 'categorias' && <ModuloCategorias categorias={categorias} productos={productos} recargarDatos={cargarDatosGrupales} />}
         {vistaActiva === 'ofertas' && <ModuloOfertas productos={productos} />}
         {vistaActiva === 'cotizaciones' && <ModuloCotizaciones />}
         {vistaActiva === 'comentarios' && <ModuloComentarios productos={productos} />}
         {vistaActiva === "cupones" && <ModuloCupones />}
+        {vistaActiva === "visitas" && <ModuloVisitas />}
         {vistaActiva === 'perfil' && <ModuloPerfil session={session} perfil={perfil} actualizarPerfilLocal={setPerfil} />}
       </main>
     </div>

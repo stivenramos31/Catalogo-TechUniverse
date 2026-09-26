@@ -25,9 +25,28 @@ export default function ModuloCotizaciones() {
           )
         )
       `)
-      .order("id", { ascending: false });
+      .order("creado_en", { ascending: false });
 
-    if (!error && data) {
+    if (error) {
+      // Fallback por si la columna de fecha se llama id o created_at
+      const { data: fallbackData } = await supabase
+        .from("cotizaciones")
+        .select(`
+          *,
+          detalles_cotizacion (
+            id,
+            cantidad,
+            precio_unitario,
+            producto_id,
+            productos (
+              titulo,
+              imagenes
+            )
+          )
+        `)
+        .order("id", { ascending: false });
+      if (fallbackData) setCotizaciones(fallbackData);
+    } else if (data) {
       setCotizaciones(data);
     }
     setCargando(false);
@@ -50,8 +69,8 @@ export default function ModuloCotizaciones() {
     }
   };
 
-  const eliminarCotizacion = async (id, cliente) => {
-    if (window.confirm(`¿Seguro que deseas eliminar la cotización de "${cliente}"?`)) {
+  const eliminarCotizacion = async (id, folio) => {
+    if (window.confirm(`¿Seguro que deseas eliminar la Cotización #${folio}?`)) {
       await supabase.from("detalles_cotizacion").delete().eq("cotizacion_id", id);
       const { error } = await supabase.from("cotizaciones").delete().eq("id", id);
       if (error) alert("Error al eliminar: " + error.message);
@@ -61,7 +80,13 @@ export default function ModuloCotizaciones() {
 
   const responderWhatsApp = (cot) => {
     const numeroLimpio = (cot.telefono_whatsapp || "").replace(/\D/g, "");
-    if (!numeroLimpio) return alert("El cliente no registró un número válido.");
+    if (!numeroLimpio || numeroLimpio.length < 8) {
+      return alert("Esta es una cotización Express sin teléfono registrado. Espera el mensaje del cliente en tu WhatsApp.");
+    }
+
+    const folioMostrar = cot.numero_folio || cot.id;
+    const origenUrl = typeof window !== "undefined" ? window.location.origin : "";
+    const enlacePublico = cot.token_publico ? `\n🔗 Comprobante oficial: ${origenUrl}/cotizacion/${cot.token_publico}` : "";
 
     const listaArticulos = (cot.detalles_cotizacion || [])
       .map(
@@ -81,12 +106,9 @@ export default function ModuloCotizaciones() {
       desglosePago = `\nSubtotal: $${subtotalNum.toFixed(2)}\nCupón (${cot.codigo_cupon}): -$${descuentoNum.toFixed(2)}\n*Total Final: $${totalNum.toFixed(2)}*`;
     }
 
-    const mensaje = `¡Hola *${cot.nombre_cliente}*! 👋 Te escribimos de *TECH UNIVERSE* respecto a tu solicitud de cotización #${cot.id}:\n\n${listaArticulos}\n${desglosePago}\n📍 Zona de entrega: ${cot.cliente_zona || "No especificada"}\n\n¿Confirmamos tu pedido para coordinar la entrega?`;
+    const mensaje = `¡Hola *${cot.nombre_cliente}*! 👋 Te escribimos de *TECH UNIVERSE* respecto a tu *Cotización #${folioMostrar}*:\n\n${listaArticulos}\n${desglosePago}\n📍 Zona: ${cot.cliente_zona || "Por coordinar"}${enlacePublico}\n\n¿Confirmamos tu pedido para coordinar la entrega?`;
 
-    window.open(
-      `https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`,
-      "_blank"
-    );
+    window.open(`https://wa.me/${numeroLimpio}?text=${encodeURIComponent(mensaje)}`, "_blank");
   };
 
   const cotizacionesFiltradas = cotizaciones.filter((c) =>
@@ -106,7 +128,7 @@ export default function ModuloCotizaciones() {
         <div>
           <h2 className="font-black text-2xl text-gray-800">📄 Bandeja de Cotizaciones</h2>
           <p className="text-xs text-gray-500 font-medium mt-1">
-            Precios y cupones verificados automáticamente por el servidor.
+            Folios consecutivos, enlaces blindados y detección de ubicación por IP pública.
           </p>
         </div>
 
@@ -142,6 +164,7 @@ export default function ModuloCotizaciones() {
             const subtotalMostrar = parseFloat(cot.subtotal || cot.total_estimado || 0);
             const descuentoMostrar = parseFloat(cot.descuento_aplicado || 0);
             const totalMostrar = parseFloat(cot.total_estimado || 0);
+            const folioMostrar = cot.numero_folio || String(cot.id).slice(0, 4);
 
             return (
               <div
@@ -150,17 +173,32 @@ export default function ModuloCotizaciones() {
               >
                 {/* Cabecera del Pedido */}
                 <div className="bg-gray-50 px-5 py-3.5 border-b flex flex-wrap justify-between items-center gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="bg-[#0f3faf] text-white font-black text-xs px-3 py-1 rounded-lg">
-                      #{cot.id}
+                  <div className="flex items-start sm:items-center gap-3">
+                    <span className="bg-[#0f3faf] text-white font-black text-sm px-3.5 py-1.5 rounded-xl shadow-xs whitespace-nowrap">
+                      #{folioMostrar}
                     </span>
                     <div>
-                      <h3 className="font-black text-gray-900 text-base">
-                        {cot.nombre_cliente}
-                      </h3>
-                      <p className="text-xs text-gray-500 font-medium">
-                        📍 {cot.cliente_zona || "Sin zona"} • 📞 {cot.telefono_whatsapp}
-                        {cot.cliente_correo ? ` • ✉️ ${cot.cliente_correo}` : ""}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-black text-gray-900 text-base">
+                          {cot.nombre_cliente}
+                        </h3>
+                        {cot.token_publico && (
+                          <a
+                            href={`/cotizacion/${cot.token_publico}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[11px] bg-blue-50 text-[#0f3faf] border border-blue-200 px-2.5 py-0.5 rounded-lg font-black hover:bg-blue-100"
+                          >
+                            🔗 Ver Comprobante Oficial
+                          </a>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-600 font-medium mt-0.5">
+                        📍 Entrega: <strong>{cot.cliente_zona || "Sin datos de envío"}</strong> • 📞 {cot.telefono_whatsapp}
+                      </p>
+                      {/* Etiqueta de Ubicación por IP Pública */}
+                      <p className="text-[11px] text-purple-800 font-bold bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-md inline-block mt-1.5">
+                        🌐 IP: {cot.ip_publica || "No registrada"} • 📌 Desde: {cot.ubicacion_ip || "El Salvador"} ({cot.dispositivo || "Web"})
                       </p>
                     </div>
                   </div>
@@ -187,7 +225,7 @@ export default function ModuloCotizaciones() {
                     </button>
 
                     <button
-                      onClick={() => eliminarCotizacion(cot.id, cot.nombre_cliente)}
+                      onClick={() => eliminarCotizacion(cot.id, folioMostrar)}
                       className="bg-red-50 hover:bg-red-100 text-red-600 text-xs font-black px-3 py-1.5 rounded-xl transition-colors"
                     >
                       🗑️
@@ -202,13 +240,13 @@ export default function ModuloCotizaciones() {
                       <div key={item.id} className="py-2.5 flex items-center justify-between gap-4">
                         <div className="flex items-center gap-3 min-w-0">
                           <img
-                            src={item.productos?.imagenes?.[0] || "https://via.placeholder.com/100"}
+                            src={item.productos?.imagenes?.[0] || "/favicon.ico"}
                             alt=""
                             className="w-11 h-11 rounded-lg border object-contain bg-white p-0.5 flex-shrink-0"
                           />
                           <div className="min-w-0">
                             <p className="font-bold text-gray-800 text-xs sm:text-sm truncate">
-                              {item.productos?.titulo || `Producto ID #${item.producto_id}`}
+                              {item.productos?.titulo || `Producto`}
                             </p>
                             <p className="text-xs text-gray-500 font-medium">
                               Cantidad: <strong className="text-gray-900">{item.cantidad}</strong> × $
@@ -221,15 +259,9 @@ export default function ModuloCotizaciones() {
                         </span>
                       </div>
                     ))}
-
-                    {cot.observaciones && (
-                      <div className="pt-3 mt-2 text-xs text-gray-600 bg-yellow-50/70 p-3 rounded-xl border border-yellow-200/70">
-                        <strong className="text-yellow-900">📝 Nota del cliente:</strong> {cot.observaciones}
-                      </div>
-                    )}
                   </div>
 
-                  {/* Resumen Financiero y Cupón */}
+                  {/* Resumen Financiero */}
                   <div className="bg-gray-50 p-4 rounded-2xl border border-gray-200/80 space-y-2">
                     <div className="flex justify-between text-xs font-bold text-gray-500">
                       <span>Subtotal:</span>
@@ -238,9 +270,7 @@ export default function ModuloCotizaciones() {
 
                     {tieneCupon ? (
                       <div className="flex justify-between items-center text-xs font-black text-[#e11d48] bg-red-50 px-2.5 py-1.5 rounded-lg border border-red-100">
-                        <span className="flex items-center gap-1">
-                          🏷️ Cupón ({cot.codigo_cupon}):
-                        </span>
+                        <span>🏷️ Cupón ({cot.codigo_cupon}):</span>
                         <span>-${descuentoMostrar.toFixed(2)}</span>
                       </div>
                     ) : (

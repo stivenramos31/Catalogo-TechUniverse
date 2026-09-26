@@ -64,19 +64,81 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
   const [formModificado, setFormModificado] = useState(false);
   const [productoEditando, setProductoEditando] = useState(null);
 
+  // Lista completa de categorías con parent_id garantizado para armar las ramas Padre -> Hijo
+  const [categoriasArbol, setCategoriasArbol] = useState(categorias || []);
+
+  // Buscador y filtro rápido en la tabla de inventario
+  const [busquedaAdmin, setBusquedaAdmin] = useState("");
+  const [filtroCatAdmin, setFiltroCatAdmin] = useState("Todas");
+
   const [nuevoProducto, setNuevoProducto] = useState(estadoInicial);
-  // Lista de objetos { file, previewUrl } para previsualizar antes de subir
   const [imagenesNuevas, setImagenesNuevas] = useState([]);
   const [imagenesExistentes, setImagenesExistentes] = useState([]);
   const [imagenesParaBorrar, setImagenesParaBorrar] = useState([]);
 
-  // Estados de la animación de carga real
   const [procesando, setProcesando] = useState(false);
   const [progresoSubida, setProgresoSubida] = useState(0);
   const [estadoSubidaTexto, setEstadoSubidaTexto] = useState("");
   const [miniaturaSubiendoActual, setMiniaturaSubiendoActual] = useState(null);
 
-  // Limpiar memoria de URLs temporales
+  // Asegura traer siempre parent_id actualizado desde Supabase
+  useEffect(() => {
+    const sincronizarCategoriasConRamas = async () => {
+      const { data } = await supabase
+        .from("categorias")
+        .select("id, nombre, parent_id")
+        .order("nombre", { ascending: true });
+      if (data) setCategoriasArbol(data);
+    };
+    sincronizarCategoriasConRamas();
+  }, [categorias, mostrarModal]);
+
+  // Ordenar categorías estrictamente por rama: Padre seguido inmediatamente de sus Hijos
+  const categoriasPrincipales = categoriasArbol
+    .filter((c) => !c.parent_id)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const obtenerSubcategorias = (parentId) =>
+    categoriasArbol
+      .filter((c) => Number(c.parent_id) === Number(parentId))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+  const categoriasJerarquicas = [];
+  categoriasPrincipales.forEach((padre) => {
+    const hijas = obtenerSubcategorias(padre.id);
+    categoriasJerarquicas.push({
+      ...padre,
+      esSub: false,
+      tieneHijas: hijas.length > 0,
+    });
+    hijas.forEach((hija, idx) => {
+      const esUltimaHija = idx === hijas.length - 1;
+      categoriasJerarquicas.push({
+        ...hija,
+        esSub: true,
+        simboloRama: esUltimaHija ? "└──" : "├──",
+        nombrePadre: padre.nombre,
+      });
+    });
+  });
+
+  // Por si alguna subcategoría quedó sin padre válido
+  categoriasArbol.forEach((c) => {
+    if (!categoriasJerarquicas.some((item) => Number(item.id) === Number(c.id))) {
+      categoriasJerarquicas.push({ ...c, esSub: Boolean(c.parent_id), simboloRama: "└──" });
+    }
+  });
+
+  const obtenerRutaCategoria = (catId) => {
+    const cat = categoriasArbol.find((c) => Number(c.id) === Number(catId));
+    if (!cat) return "Sin Categoría";
+    if (cat.parent_id) {
+      const padre = categoriasArbol.find((p) => Number(p.id) === Number(cat.parent_id));
+      return padre ? `${padre.nombre} › ${cat.nombre}` : cat.nombre;
+    }
+    return cat.nombre;
+  };
+
   const limpiarPreviews = (lista) => {
     lista.forEach((item) => {
       if (item.previewUrl) URL.revokeObjectURL(item.previewUrl);
@@ -126,7 +188,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
       setImagenesExistentes(prod.imagenes || []);
     } else {
       setProductoEditando(null);
-      setNuevoProducto({ ...estadoInicial, categoria_id: categorias[0]?.id || "" });
+      setNuevoProducto({ ...estadoInicial, categoria_id: categoriasJerarquicas[0]?.id || "" });
       setImagenesExistentes([]);
     }
     setImagenesNuevas([]);
@@ -163,7 +225,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     setFormModificado(true);
   };
 
-  // Agrega fotos con previsualización instantánea sin borrar las seleccionadas antes
   const manejarSeleccionArchivos = (e) => {
     const archivosSeleccionados = Array.from(e.target.files || []);
     if (archivosSeleccionados.length === 0) return;
@@ -184,10 +245,9 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
     setImagenesNuevas((prev) => [...prev, ...nuevasConPreview]);
     setFormModificado(true);
-    e.target.value = ""; // Permite volver a abrir el selector para agregar más
+    e.target.value = "";
   };
 
-  // Descartar una foto nueva de la previsualización antes de subirla
   const eliminarImagenNueva = (index) => {
     const imagenQuitada = imagenesNuevas[index];
     if (imagenQuitada?.previewUrl) {
@@ -197,7 +257,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     setFormModificado(true);
   };
 
-  // Reordenar fotos nuevas antes de subirlas
   const moverImagenNueva = (index, direccion) => {
     const copia = [...imagenesNuevas];
     if (direccion === "izq" && index > 0) {
@@ -239,7 +298,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
     try {
       const totalFotosNuevas = imagenesNuevas.length;
-      // Calculamos pasos totales para que la barra avance de forma 100% real
       const totalPasos = (imagenesParaBorrar.length > 0 ? 1 : 0) + totalFotosNuevas * 2 + 1;
       let pasoActual = 0;
 
@@ -251,7 +309,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         setMiniaturaSubiendoActual(preview);
       };
 
-      // 1. Destruir físicamente del Storage las imágenes antiguas marcadas con "✕"
       if (imagenesParaBorrar.length > 0) {
         avanzarProgreso(`Eliminando ${imagenesParaBorrar.length} foto(s) antigua(s) del servidor...`);
         const { error: errorStorage } = await supabase.storage
@@ -260,7 +317,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         if (errorStorage) console.error("Aviso al limpiar Storage:", errorStorage.message);
       }
 
-      // 2. Convertir a .webp y subir cada imagen nueva mostrando el progreso real
       let urlsNuevas = [];
       for (let i = 0; i < totalFotosNuevas; i++) {
         const item = imagenesNuevas[i];
@@ -276,7 +332,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
           `Subiendo imagen ${numFoto} de ${totalFotosNuevas} al servidor...`,
           item.previewUrl
         );
-        const fileName = `${Date.now()}-${ i }-${archivoWebP.name.replace(/\s+/g, "")}`;
+        const fileName = `${Date.now()}-${i}-${archivoWebP.name.replace(/\s+/g, "")}`;
         const { error } = await supabase.storage.from("productos").upload(fileName, archivoWebP);
         if (error) throw error;
 
@@ -284,7 +340,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         urlsNuevas.push(data.publicUrl);
       }
 
-      // 3. Guardar datos en la tabla productos
       avanzarProgreso("Guardando información del producto en la base de datos...", null);
 
       const fotosFinales = [...imagenesExistentes, ...urlsNuevas];
@@ -322,7 +377,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
       setProgresoSubida(100);
       setEstadoSubidaTexto("¡Completado con éxito!");
 
-      // Breve pausa de 400ms para que el usuario vea el 100% antes de cerrar el modal
       await new Promise((res) => setTimeout(res, 400));
 
       limpiarPreviews(imagenesNuevas);
@@ -356,18 +410,72 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     }
   };
 
+  const productosFiltradosAdmin = productos.filter((prod) => {
+    const coincideTexto = prod.titulo?.toLowerCase().includes(busquedaAdmin.toLowerCase());
+    if (filtroCatAdmin === "Todas") return coincideTexto;
+
+    const idFiltro = Number(filtroCatAdmin);
+    const idsHijas = obtenerSubcategorias(idFiltro).map((s) => Number(s.id));
+    const coincideCat =
+      Number(prod.categoria_id) === idFiltro || idsHijas.includes(Number(prod.categoria_id));
+
+    return coincideTexto && coincideCat;
+  });
+
   const totalFotosActuales = imagenesExistentes.length + imagenesNuevas.length;
 
   return (
     <div className="bg-white p-6 rounded-2xl shadow-sm border animate-fade-in">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
-        <h2 className="font-black text-xl sm:text-2xl text-gray-800">Inventario de Productos</h2>
+      <div className="flex flex-wrap justify-between items-center gap-4 mb-5">
+        <div>
+          <h2 className="font-black text-xl sm:text-2xl text-gray-800">Inventario de Productos</h2>
+          <p className="text-xs text-gray-500 font-medium mt-0.5">
+            Gestiona tu catálogo y asigna productos ordenados por Categoría Padre y Subcategoría.
+          </p>
+        </div>
         <button
           onClick={() => abrirModal()}
-          className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl transition-colors shadow-sm text-sm sm:text-base whitespace-nowrap"
+          className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl transition-colors shadow-sm text-sm sm:text-base whitespace-nowrap cursor-pointer"
         >
           + Nuevo Producto
         </button>
+      </div>
+
+      {/* 🔍 Barra de búsqueda y filtro en árbol dentro del inventario */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-gray-50 p-3.5 rounded-2xl border border-gray-200/80">
+        <div className="sm:col-span-2 relative">
+          <input
+            type="text"
+            placeholder="🔍 Buscar producto por título..."
+            value={busquedaAdmin}
+            onChange={(e) => setBusquedaAdmin(e.target.value)}
+            className="w-full bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold text-gray-800 outline-none focus:border-[#0f3faf]"
+          />
+          {busquedaAdmin && (
+            <button
+              type="button"
+              onClick={() => setBusquedaAdmin("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 text-xs font-black"
+            >
+              ✕
+            </button>
+          )}
+        </div>
+
+        <select
+          value={filtroCatAdmin}
+          onChange={(e) => setFiltroCatAdmin(e.target.value)}
+          className="bg-white border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-gray-700 outline-none focus:border-[#0f3faf]"
+        >
+          <option value="Todas">📁 Todas las categorías ({productos.length})</option>
+          {categoriasJerarquicas.map((cat) => (
+            <option key={cat.id} value={cat.id}>
+              {cat.esSub
+                ? `\u00A0\u00A0\u00A0${cat.simboloRama} ↳ ${cat.nombre}`
+                : `📁 ${cat.nombre}`}
+            </option>
+          ))}
+        </select>
       </div>
 
       <div className="overflow-x-auto">
@@ -378,67 +486,80 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
               <th className="p-4 font-black text-gray-600">Título</th>
               <th className="p-4 font-black text-gray-600">Precio</th>
               <th className="p-4 font-black text-gray-600">Stock</th>
-              <th className="p-4 font-black text-gray-600">Categoría</th>
+              <th className="p-4 font-black text-gray-600">Categoría / Rama</th>
               <th className="p-4 font-black text-gray-600">Estado</th>
               <th className="p-4 font-black text-gray-600 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
-            {productos.length === 0 && (
+            {productosFiltradosAdmin.length === 0 && (
               <tr>
                 <td colSpan="7" className="text-center p-8 text-gray-400 font-bold">
-                  No hay productos registrados.
+                  No se encontraron productos con ese criterio.
                 </td>
               </tr>
             )}
-            {productos.map((prod) => (
-              <tr key={prod.id} className="border-b hover:bg-blue-50/50 transition-colors">
-                <td className="p-4">
-                  <img
-                    src={prod.imagenes?.[0] || "/favicon.ico"}
-                    alt={prod.titulo}
-                    className="w-14 h-14 object-contain bg-white p-1 rounded-lg border shadow-xs"
-                  />
-                </td>
-                <td className="p-4 font-bold text-gray-800 max-w-[200px] truncate">{prod.titulo}</td>
-                <td className="p-4 text-green-600 font-black text-lg">${prod.precio_actual}</td>
-                <td className="p-4">
-                  <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-black border">
-                    {prod.stock_disponible}
-                  </span>
-                </td>
-                <td className="p-4 text-gray-500 font-medium">
-                  {categorias.find((c) => c.id === prod.categoria_id)?.nombre || "Sin Categoría"}
-                </td>
-                <td className="p-4">
-                  {prod.activo ? (
-                    <span className="text-green-700 flex items-center gap-1.5 font-bold">
-                      <span className="w-2 h-2 bg-green-500 rounded-full"></span> Visible
+            {productosFiltradosAdmin.map((prod) => {
+              const rutaCat = obtenerRutaCategoria(prod.categoria_id);
+              const esSub = rutaCat.includes("›");
+
+              return (
+                <tr key={prod.id} className="border-b hover:bg-blue-50/50 transition-colors">
+                  <td className="p-4">
+                    <img
+                      src={prod.imagenes?.[0] || "/favicon.ico"}
+                      alt={prod.titulo}
+                      className="w-14 h-14 object-contain bg-white p-1 rounded-lg border shadow-xs"
+                    />
+                  </td>
+                  <td className="p-4 font-bold text-gray-800 max-w-[200px] truncate">{prod.titulo}</td>
+                  <td className="p-4 text-green-600 font-black text-lg">${prod.precio_actual}</td>
+                  <td className="p-4">
+                    <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-black border">
+                      {prod.stock_disponible}
                     </span>
-                  ) : (
-                    <span className="text-gray-500 flex items-center gap-1.5 font-bold">
-                      <span className="w-2 h-2 bg-gray-400 rounded-full"></span> Oculto
+                  </td>
+                  <td className="p-4">
+                    <span
+                      className={`inline-block text-xs font-black px-3 py-1 rounded-lg border ${
+                        esSub
+                          ? "bg-purple-50 text-purple-800 border-purple-200"
+                          : "bg-blue-50 text-[#0f3faf] border-blue-200"
+                      }`}
+                    >
+                      {rutaCat}
                     </span>
-                  )}
-                </td>
-                <td className="p-4 text-right">
-                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
-                    <button
-                      onClick={() => abrirModal(prod)}
-                      className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-xs font-black hover:bg-blue-200 transition-colors text-center"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => eliminarProducto(prod.id, prod.titulo, prod.imagenes)}
-                      className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-black hover:bg-red-100 transition-colors text-center"
-                    >
-                      Borrar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td className="p-4">
+                    {prod.activo ? (
+                      <span className="text-green-700 flex items-center gap-1.5 font-bold">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span> Visible
+                      </span>
+                    ) : (
+                      <span className="text-gray-500 flex items-center gap-1.5 font-bold">
+                        <span className="w-2 h-2 bg-gray-400 rounded-full"></span> Oculto
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-4 text-right">
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
+                      <button
+                        onClick={() => abrirModal(prod)}
+                        className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-xs font-black hover:bg-blue-200 transition-colors text-center cursor-pointer"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => eliminarProducto(prod.id, prod.titulo, prod.imagenes)}
+                        className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-black hover:bg-red-100 transition-colors text-center cursor-pointer"
+                      >
+                        Borrar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -447,7 +568,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
           <div className="bg-white w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col relative">
             
-{/* 🚀 PANTALLA DE ANIMACIÓN DE SUBIDA REAL */}
             {procesando && (
               <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
                 <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center shadow-2xl border-t-8 border-[#0f3faf] space-y-5">
@@ -474,7 +594,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                     </p>
                   </div>
 
-                  {/* Barra de Progreso Real */}
                   <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden p-0.5">
                     <div
                       className="bg-gradient-to-r from-[#0f3faf] to-green-500 h-full rounded-full transition-all duration-300 ease-out"
@@ -490,7 +609,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
               </div>
             )}
 
-            <div className="sticky top-0 bg-white border-b px-6 sm:px-8 py-4 sm:py-5 flex justify-between items-center z-10 rounded-t-3xl">
+            <div className="sticky top-0 bg-white border-b px-6 sm:px-8 py-4 sm:py-5 flex justify-between items-center z-30 rounded-t-3xl">
               <h2 className="font-black text-xl sm:text-2xl text-gray-800">
                 {productoEditando ? "✏️ Editar Producto" : "➕ Nuevo Producto"}
               </h2>
@@ -498,7 +617,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                 type="button"
                 onClick={intentarCerrarModal}
                 disabled={procesando}
-                className="text-gray-400 hover:text-red-600 transition-colors p-2 bg-gray-100 rounded-full"
+                className="text-gray-400 hover:text-red-600 transition-colors p-2 bg-gray-100 rounded-full cursor-pointer"
               >
                 ✕
               </button>
@@ -558,23 +677,37 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                   />
                 </div>
 
+                {/* 🌳 SELECTOR EN RAMA: PADRE E HIJOS ORDENADOS */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-1.5">Categoría *</label>
+                  <label className="block text-sm font-bold text-gray-700 mb-1.5">
+                    Categoría / Subcategoría (Ordenado por Rama) *
+                  </label>
                   <select
                     value={nuevoProducto.categoria_id}
                     onChange={(e) => manejarCambioInput("categoria_id", e.target.value)}
-                    className="w-full border-2 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:border-[#0f3faf] outline-none font-bold"
+                    className="w-full border-2 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:border-[#0f3faf] outline-none font-bold text-gray-900"
                     required
                   >
                     <option value="" disabled>
-                      Selecciona...
+                      Selecciona categoría o subcategoría...
                     </option>
-                    {categorias.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.nombre}
+                    {categoriasJerarquicas.map((cat) => (
+                      <option
+                        key={cat.id}
+                        value={cat.id}
+                        className={cat.esSub ? "text-gray-700 font-semibold" : "font-black text-blue-950 bg-gray-100"}
+                      >
+                        {cat.esSub
+                          ? `\u00A0\u00A0\u00A0\u00A0${cat.simboloRama} ↳ ${cat.nombre} (${cat.nombrePadre})`
+                          : `📁 ${cat.nombre}`}
                       </option>
                     ))}
                   </select>
+                  {nuevoProducto.categoria_id && (
+                    <p className="text-[11px] font-bold text-[#0f3faf] mt-1">
+                      Ubicación seleccionada: {obtenerRutaCategoria(nuevoProducto.categoria_id)}
+                    </p>
+                  )}
                 </div>
 
                 <div>
@@ -643,7 +776,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                   )}
                 </div>
 
-                {/* 1. Fotos actuales ya guardadas en el servidor */}
                 {imagenesExistentes.length > 0 && (
                   <div className="bg-white p-4 rounded-xl border border-blue-100">
                     <p className="text-xs font-black text-gray-600 uppercase tracking-wider mb-3">
@@ -655,12 +787,11 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                           key={index}
                           className="relative w-24 h-28 sm:w-28 sm:h-32 rounded-2xl border-2 border-gray-200 shadow-xs overflow-hidden bg-white flex flex-col justify-between"
                         >
-                          {/* Botón ✕ siempre accesible en móvil y PC */}
                           <button
                             type="button"
                             onClick={() => eliminarImagenExistente(index)}
                             title="Quitar imagen"
-                            className="absolute top-1.5 right-1.5 z-10 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full font-black text-xs flex items-center justify-center shadow-md"
+                            className="absolute top-1.5 right-1.5 z-10 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full font-black text-xs flex items-center justify-center shadow-md cursor-pointer"
                           >
                             ✕
                           </button>
@@ -700,7 +831,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                   </div>
                 )}
 
-                {/* 2. Previsualización de FOTOS NUEVAS antes de subir */}
                 {imagenesNuevas.length > 0 && (
                   <div className="bg-green-50/70 p-4 rounded-xl border-2 border-green-200">
                     <div className="flex justify-between items-center mb-3">
@@ -727,12 +857,11 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                             key={index}
                             className="relative w-24 h-28 sm:w-28 sm:h-32 rounded-2xl border-2 border-green-500 shadow-sm overflow-hidden bg-white flex flex-col justify-between"
                           >
-                            {/* Botón ✕ para descartar antes de subir */}
                             <button
                               type="button"
                               onClick={() => eliminarImagenNueva(index)}
                               title="No subir esta imagen"
-                              className="absolute top-1.5 right-1.5 z-10 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full font-black text-xs flex items-center justify-center shadow-md"
+                              className="absolute top-1.5 right-1.5 z-10 bg-red-600 hover:bg-red-700 text-white w-6 h-6 rounded-full font-black text-xs flex items-center justify-center shadow-md cursor-pointer"
                             >
                               ✕
                             </button>
@@ -800,19 +929,20 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                 </span>
               </label>
 
-              <div className="sticky bottom-0 bg-white pt-4 pb-2 border-t flex gap-3 sm:gap-4">
+              {/* z-30 para que ninguna miniatura o botón ✕ se vea por encima de Cancelar / Guardar */}
+              <div className="sticky bottom-0 z-30 bg-white pt-4 pb-2 border-t flex gap-3 sm:gap-4">
                 <button
                   type="button"
                   onClick={intentarCerrarModal}
                   disabled={procesando}
-                  className="w-1/3 bg-gray-100 text-gray-700 font-black py-3.5 rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base"
+                  className="w-1/3 bg-gray-100 text-gray-700 font-black py-3.5 rounded-xl hover:bg-gray-200 transition-colors text-sm sm:text-base cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={procesando}
-                  className="w-2/3 bg-[#0f3faf] text-white font-black py-3.5 rounded-xl hover:bg-blue-800 transition-colors text-sm sm:text-base shadow-xl shadow-blue-200 flex justify-center items-center gap-2"
+                  className="w-2/3 bg-[#0f3faf] text-white font-black py-3.5 rounded-xl hover:bg-blue-800 transition-colors text-sm sm:text-base shadow-xl shadow-blue-200 flex justify-center items-center gap-2 cursor-pointer"
                 >
                   {productoEditando ? "Guardar Cambios" : "Publicar Producto"}
                 </button>
