@@ -64,10 +64,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
   const [formModificado, setFormModificado] = useState(false);
   const [productoEditando, setProductoEditando] = useState(null);
 
-  // Lista completa de categorías con parent_id garantizado para armar las ramas Padre -> Hijo
   const [categoriasArbol, setCategoriasArbol] = useState(categorias || []);
-
-  // Buscador y filtro rápido en la tabla de inventario
   const [busquedaAdmin, setBusquedaAdmin] = useState("");
   const [filtroCatAdmin, setFiltroCatAdmin] = useState("Todas");
 
@@ -81,7 +78,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
   const [estadoSubidaTexto, setEstadoSubidaTexto] = useState("");
   const [miniaturaSubiendoActual, setMiniaturaSubiendoActual] = useState(null);
 
-  // Asegura traer siempre parent_id actualizado desde Supabase
   useEffect(() => {
     const sincronizarCategoriasConRamas = async () => {
       const { data } = await supabase
@@ -93,7 +89,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     sincronizarCategoriasConRamas();
   }, [categorias, mostrarModal]);
 
-  // Ordenar categorías estrictamente por rama: Padre seguido inmediatamente de sus Hijos
   const categoriasPrincipales = categoriasArbol
     .filter((c) => !c.parent_id)
     .sort((a, b) => a.nombre.localeCompare(b.nombre));
@@ -122,7 +117,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     });
   });
 
-  // Por si alguna subcategoría quedó sin padre válido
   categoriasArbol.forEach((c) => {
     if (!categoriasJerarquicas.some((item) => Number(item.id) === Number(c.id))) {
       categoriasJerarquicas.push({ ...c, esSub: Boolean(c.parent_id), simboloRama: "└──" });
@@ -425,7 +419,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
   const totalFotosActuales = imagenesExistentes.length + imagenesNuevas.length;
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border animate-fade-in">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in">
       <div className="flex flex-wrap justify-between items-center gap-4 mb-5">
         <div>
           <h2 className="font-black text-xl sm:text-2xl text-gray-800">Inventario de Productos</h2>
@@ -434,6 +428,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
           </p>
         </div>
         <button
+          type="button"
           onClick={() => abrirModal()}
           className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl transition-colors shadow-sm text-sm sm:text-base whitespace-nowrap cursor-pointer"
         >
@@ -441,7 +436,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         </button>
       </div>
 
-      {/* 🔍 Barra de búsqueda y filtro en árbol dentro del inventario */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5 bg-gray-50 p-3.5 rounded-2xl border border-gray-200/80">
         <div className="sm:col-span-2 relative">
           <input
@@ -478,23 +472,23 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         </select>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
+      {/* 📱 TABLA COMPACTA EN ANDROID Y COMPLETA EN PC (Sin scroll horizontal forzado) */}
+      <div className="overflow-x-auto border rounded-xl shadow-xs">
+        <table className="w-full text-left text-xs sm:text-sm">
           <thead className="bg-gray-100 border-b-2 border-gray-200">
             <tr>
-              <th className="p-4 font-black text-gray-600">Foto</th>
-              <th className="p-4 font-black text-gray-600">Título</th>
-              <th className="p-4 font-black text-gray-600">Precio</th>
-              <th className="p-4 font-black text-gray-600">Stock</th>
-              <th className="p-4 font-black text-gray-600">Categoría / Rama</th>
-              <th className="p-4 font-black text-gray-600">Estado</th>
-              <th className="p-4 font-black text-gray-600 text-right">Acciones</th>
+              <th className="p-2.5 sm:p-4 font-black text-gray-600 w-24 sm:w-20">Foto</th>
+              <th className="p-2.5 sm:p-4 font-black text-gray-600">Producto / Detalles</th>
+              <th className="hidden sm:table-cell p-4 font-black text-gray-600">Stock</th>
+              <th className="hidden md:table-cell p-4 font-black text-gray-600">Categoría / Rama</th>
+              <th className="hidden sm:table-cell p-4 font-black text-gray-600">Estado</th>
+              <th className="p-2.5 sm:p-4 font-black text-gray-600 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
             {productosFiltradosAdmin.length === 0 && (
               <tr>
-                <td colSpan="7" className="text-center p-8 text-gray-400 font-bold">
+                <td colSpan="6" className="text-center p-8 text-gray-400 font-bold">
                   No se encontraron productos con ese criterio.
                 </td>
               </tr>
@@ -505,21 +499,40 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
               return (
                 <tr key={prod.id} className="border-b hover:bg-blue-50/50 transition-colors">
-                  <td className="p-4">
+                  <td className="p-2.5 sm:p-4">
                     <img
                       src={prod.imagenes?.[0] || "/favicon.ico"}
                       alt={prod.titulo}
-                      className="w-14 h-14 object-contain bg-white p-1 rounded-lg border shadow-xs"
+                      className="w-20 h-20 sm:w-16 sm:h-16 object-contain bg-white p-1.5 rounded-xl border shadow-xs"
                     />
                   </td>
-                  <td className="p-4 font-bold text-gray-800 max-w-[200px] truncate">{prod.titulo}</td>
-                  <td className="p-4 text-green-600 font-black text-lg">${prod.precio_actual}</td>
-                  <td className="p-4">
+
+                  <td className="p-2.5 sm:p-4">
+                    <p className="font-black text-gray-900 text-sm sm:text-base line-clamp-2">
+                      {prod.titulo}
+                    </p>
+                    <p className="text-green-600 font-black text-base sm:text-lg mt-0.5">
+                      ${parseFloat(prod.precio_actual || 0).toFixed(2)}
+                    </p>
+                    <div className="sm:hidden flex flex-wrap items-center gap-1.5 mt-1">
+                      <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-bold text-[10px] border">
+                        Stock: {prod.stock_disponible}
+                      </span>
+                      {prod.activo ? (
+                        <span className="text-green-700 font-bold text-[10px]">● Visible</span>
+                      ) : (
+                        <span className="text-gray-400 font-bold text-[10px]">○ Oculto</span>
+                      )}
+                    </div>
+                  </td>
+
+                  <td className="hidden sm:table-cell p-4">
                     <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-black border">
                       {prod.stock_disponible}
                     </span>
                   </td>
-                  <td className="p-4">
+
+                  <td className="hidden md:table-cell p-4">
                     <span
                       className={`inline-block text-xs font-black px-3 py-1 rounded-lg border ${
                         esSub
@@ -530,7 +543,8 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                       {rutaCat}
                     </span>
                   </td>
-                  <td className="p-4">
+
+                  <td className="hidden sm:table-cell p-4">
                     {prod.activo ? (
                       <span className="text-green-700 flex items-center gap-1.5 font-bold">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span> Visible
@@ -541,17 +555,20 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                       </span>
                     )}
                   </td>
-                  <td className="p-4 text-right">
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2">
+
+                  <td className="p-2.5 sm:p-4 text-right">
+                    <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-1.5 sm:gap-2">
                       <button
+                        type="button"
                         onClick={() => abrirModal(prod)}
-                        className="bg-blue-100 text-blue-700 px-4 py-2 rounded-lg text-xs font-black hover:bg-blue-200 transition-colors text-center cursor-pointer"
+                        className="bg-blue-100 text-blue-700 px-3.5 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer"
                       >
                         Editar
                       </button>
                       <button
+                        type="button"
                         onClick={() => eliminarProducto(prod.id, prod.titulo, prod.imagenes)}
-                        className="bg-red-50 text-red-600 px-4 py-2 rounded-lg text-xs font-black hover:bg-red-100 transition-colors text-center cursor-pointer"
+                        className="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer"
                       >
                         Borrar
                       </button>
@@ -677,7 +694,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                   />
                 </div>
 
-                {/* 🌳 SELECTOR EN RAMA: PADRE E HIJOS ORDENADOS */}
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1.5">
                     Categoría / Subcategoría (Ordenado por Rama) *
@@ -692,11 +708,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                       Selecciona categoría o subcategoría...
                     </option>
                     {categoriasJerarquicas.map((cat) => (
-                      <option
-                        key={cat.id}
-                        value={cat.id}
-                        className={cat.esSub ? "text-gray-700 font-semibold" : "font-black text-blue-950 bg-gray-100"}
-                      >
+                      <option key={cat.id} value={cat.id}>
                         {cat.esSub
                           ? `\u00A0\u00A0\u00A0\u00A0${cat.simboloRama} ↳ ${cat.nombre} (${cat.nombrePadre})`
                           : `📁 ${cat.nombre}`}
@@ -750,7 +762,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                 </div>
               </div>
 
-              {/* 📸 GALERÍA CON PREVISUALIZACIÓN Y DESCARTE PREVIO */}
               <div className="bg-blue-50/70 p-4 sm:p-6 rounded-2xl border-2 border-blue-100 space-y-5">
                 <div className="flex flex-wrap justify-between items-center gap-2">
                   <div>
@@ -929,7 +940,6 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                 </span>
               </label>
 
-              {/* z-30 para que ninguna miniatura o botón ✕ se vea por encima de Cancelar / Guardar */}
               <div className="sticky bottom-0 z-30 bg-white pt-4 pb-2 border-t flex gap-3 sm:gap-4">
                 <button
                   type="button"
