@@ -6,6 +6,38 @@ import Link from "next/link";
 import { supabase } from "../../../lib/supabase";
 import { useCart } from "../../../context/CartContext";
 
+// Convierte enlaces de YouTube (watch, youtu.be, shorts) y Google Drive a formato reproductor (embed)
+const obtenerUrlVideoEmbed = (url) => {
+  if (!url) return null;
+  const link = url.trim();
+
+  // 1. Si es un enlace de Google Drive
+  if (link.includes("drive.google.com")) {
+    const matchDrive =
+      link.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) ||
+      link.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+    if (matchDrive && matchDrive[1]) {
+      return {
+        tipo: "drive",
+        embedUrl: `https://drive.google.com/file/d/${matchDrive[1]}/preview`,
+      };
+    }
+  }
+
+  // 2. Si es un enlace de YouTube (normal, corto o Shorts)
+  const regExpYT =
+    /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?|shorts)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+  const matchYT = link.match(regExpYT);
+  if (matchYT && matchYT[1]) {
+    return {
+      tipo: "youtube",
+      embedUrl: `https://www.youtube.com/embed/${matchYT[1]}?rel=0`,
+    };
+  }
+
+  return null;
+};
+
 export default function DetalleProducto() {
   const params = useParams();
   const rawId = params?.id ? decodeURIComponent(params.id) : "";
@@ -14,6 +46,7 @@ export default function DetalleProducto() {
 
   const [producto, setProducto] = useState(null);
   const [categoriaNombre, setCategoriaNombre] = useState("");
+  // Puede ser el índice numérico de la foto (0, 1, 2...) o "video"
   const [imagenActiva, setImagenActiva] = useState(0);
   const [cargando, setCargando] = useState(true);
 
@@ -46,13 +79,29 @@ export default function DetalleProducto() {
 
         if (dataProd) {
           setProducto(dataProd);
+          setImagenActiva(0);
+
           if (dataProd.categoria_id) {
             const { data: cat } = await supabase
               .from("categorias")
-              .select("nombre")
+              .select("id, nombre, parent_id")
               .eq("id", dataProd.categoria_id)
               .maybeSingle();
-            if (cat) setCategoriaNombre(cat.nombre);
+
+            if (cat) {
+              if (cat.parent_id) {
+                const { data: padre } = await supabase
+                  .from("categorias")
+                  .select("nombre")
+                  .eq("id", cat.parent_id)
+                  .maybeSingle();
+                setCategoriaNombre(
+                  padre ? `${padre.nombre} › ${cat.nombre}` : cat.nombre
+                );
+              } else {
+                setCategoriaNombre(cat.nombre);
+              }
+            }
           }
         }
       } catch (err) {
@@ -77,32 +126,53 @@ export default function DetalleProducto() {
     return (
       <div className="min-h-[70vh] flex flex-col items-center justify-center p-4 text-center">
         <span className="text-6xl mb-4">🔍</span>
-        <h1 className="text-2xl font-black text-gray-800 mb-2">Producto no encontrado</h1>
-        <p className="text-gray-500 mb-6">El producto que buscas no existe o cambió de enlace.</p>
-        <Link href="/catalogo" className="bg-[#0f3faf] text-white font-bold px-6 py-3 rounded-xl hover:bg-blue-800 transition-colors">
+        <h1 className="text-2xl font-black text-gray-800 mb-2">
+          Producto no encontrado
+        </h1>
+        <p className="text-gray-500 mb-6">
+          El producto que buscas no existe o cambió de enlace.
+        </p>
+        <Link
+          href="/catalogo"
+          className="bg-[#0f3faf] text-white font-bold px-6 py-3 rounded-xl hover:bg-blue-800 transition-colors"
+        >
           Volver al Catálogo
         </Link>
       </div>
     );
   }
 
-  const itemEnCarrito = (cart || []).find(item => String(item.id) === String(producto.id));
+  const itemEnCarrito = (cart || []).find(
+    (item) => String(item.id) === String(producto.id)
+  );
   const cantidadEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
 
-  const tieneDescuento = producto.precio_anterior && parseFloat(producto.precio_anterior) > parseFloat(producto.precio_actual);
+  const tieneDescuento =
+    producto.precio_anterior &&
+    parseFloat(producto.precio_anterior) > parseFloat(producto.precio_actual);
   const porcentajeDescuento = tieneDescuento
-    ? Math.round(((producto.precio_anterior - producto.precio_actual) / producto.precio_anterior) * 100)
+    ? Math.round(
+        ((producto.precio_anterior - producto.precio_actual) /
+          producto.precio_anterior) *
+          100
+      )
     : 0;
 
-  const imagenes = producto.imagenes?.length > 0 
-    ? producto.imagenes 
-    : ["https://via.placeholder.com/600?text=Sin+Imagen"];
+  const imagenes =
+    producto.imagenes?.length > 0
+      ? producto.imagenes
+      : ["https://via.placeholder.com/600?text=Sin+Imagen"];
+
+  const infoVideo = obtenerUrlVideoEmbed(producto.video_youtube);
 
   const compartirProducto = (red) => {
     const urlActual = typeof window !== "undefined" ? window.location.href : "";
-    const texto = `Mira este producto: ${producto.titulo}`;
+    const texto = `Mira este producto en TECH UNIVERSE: ${producto.titulo}`;
     if (red === "whatsapp") {
-      window.open(`https://wa.me/?text=${encodeURIComponent(texto + " " + urlActual)}`, "_blank");
+      window.open(
+        `https://wa.me/?text=${encodeURIComponent(texto + " " + urlActual)}`,
+        "_blank"
+      );
     } else if (red === "copiar") {
       navigator.clipboard.writeText(urlActual);
       alert("¡Enlace copiado al portapapeles!");
@@ -110,42 +180,82 @@ export default function DetalleProducto() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-6 text-sm font-bold text-gray-500 flex items-center gap-2">
-          <Link href="/catalogo" className="hover:text-[#0f3faf]">← Volver al Catálogo</Link>
-          {categoriaNombre && <span>/ {categoriaNombre}</span>}
+        <div className="mb-5 text-xs sm:text-sm font-bold text-gray-500 flex flex-wrap items-center gap-2">
+          <Link href="/catalogo" className="hover:text-[#0f3faf] transition-colors">
+            ← Volver al Catálogo
+          </Link>
+          {categoriaNombre && (
+            <span className="text-gray-400">/ {categoriaNombre}</span>
+          )}
         </div>
 
-        <div className="bg-white rounded-3xl shadow-sm border p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-10">
-          {/* Galería de Imágenes */}
+        <div className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+          {/* Galería de Imágenes y Video */}
           <div>
-            <div className="aspect-square bg-white rounded-2xl border overflow-hidden flex items-center justify-center p-4 mb-4 relative">
-              {tieneDescuento && (
-                <span className="absolute top-4 left-4 bg-[#e11d48] text-white text-xs font-black px-3 py-1 rounded-lg">
+            <div className="aspect-square bg-white rounded-2xl border overflow-hidden flex items-center justify-center p-2 sm:p-4 mb-4 relative">
+              {tieneDescuento && imagenActiva !== "video" && (
+                <span className="absolute top-4 left-4 z-10 bg-[#e11d48] text-white text-xs font-black px-3 py-1 rounded-lg shadow-xs">
                   -{porcentajeDescuento}% OFF
                 </span>
               )}
-              <img
-                src={imagenes[imagenActiva]}
-                alt={producto.titulo}
-                className="max-w-full max-h-full object-contain"
-              />
+
+              {imagenActiva === "video" && infoVideo ? (
+                <iframe
+                  src={infoVideo.embedUrl}
+                  title={`Video de ${producto.titulo}`}
+                  className="w-full h-full rounded-xl border-0 bg-black"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <img
+                  src={imagenes[imagenActiva] || imagenes[0]}
+                  alt={producto.titulo}
+                  className="max-w-full max-h-full object-contain"
+                />
+              )}
             </div>
 
-            {imagenes.length > 1 && (
+            {/* Miniaturas de Fotos + Botón de Video si existe */}
+            {(imagenes.length > 1 || infoVideo) && (
               <div className="flex gap-3 overflow-x-auto pb-2">
                 {imagenes.map((img, idx) => (
                   <button
                     key={idx}
+                    type="button"
                     onClick={() => setImagenActiva(idx)}
-                    className={`w-20 h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 p-1 ${
-                      imagenActiva === idx ? "border-[#0f3faf]" : "border-gray-200 opacity-60"
+                    className={`w-18 h-18 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 p-1 transition-all cursor-pointer ${
+                      imagenActiva === idx
+                        ? "border-[#0f3faf] shadow-xs"
+                        : "border-gray-200 opacity-60 hover:opacity-100"
                     }`}
                   >
-                    <img src={img} alt="" className="w-full h-full object-contain" />
+                    <img
+                      src={img}
+                      alt=""
+                      className="w-full h-full object-contain"
+                    />
                   </button>
                 ))}
+
+                {infoVideo && (
+                  <button
+                    type="button"
+                    onClick={() => setImagenActiva("video")}
+                    className={`w-18 h-18 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                      imagenActiva === "video"
+                        ? "border-[#e11d48] bg-red-50 text-[#e11d48] shadow-xs"
+                        : "border-gray-200 bg-gray-900 text-white opacity-85 hover:opacity-100"
+                    }`}
+                  >
+                    <span className="text-xl leading-none">▶️</span>
+                    <span className="text-[10px] font-black uppercase tracking-wider">
+                      Video
+                    </span>
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -153,11 +263,23 @@ export default function DetalleProducto() {
           {/* Información del Producto */}
           <div className="flex flex-col justify-between">
             <div>
-              {categoriaNombre && (
-                <span className="text-xs font-black text-blue-600 uppercase tracking-wider bg-blue-50 px-3 py-1 rounded-full">
-                  {categoriaNombre}
-                </span>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                {categoriaNombre && (
+                  <span className="text-xs font-black text-blue-600 uppercase tracking-wider bg-blue-50 px-3 py-1 rounded-full">
+                    {categoriaNombre}
+                  </span>
+                )}
+
+                {infoVideo && (
+                  <button
+                    type="button"
+                    onClick={() => setImagenActiva("video")}
+                    className="text-xs font-black text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1 rounded-full flex items-center gap-1 transition-colors cursor-pointer"
+                  >
+                    <span>🎬</span> Ver video demostrativo
+                  </button>
+                )}
+              </div>
 
               <h1 className="text-2xl md:text-3xl font-black text-gray-900 mt-3 mb-4">
                 {producto.titulo}
@@ -175,10 +297,16 @@ export default function DetalleProducto() {
               </div>
 
               <div className="mb-6">
-                <span className={`text-xs font-black px-3 py-1 rounded-full ${
-                  producto.stock_disponible > 0 ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"
-                }`}>
-                  {producto.stock_disponible > 0 ? `Stock disponible: ${producto.stock_disponible}` : "Agotado"}
+                <span
+                  className={`text-xs font-black px-3 py-1 rounded-full ${
+                    producto.stock_disponible > 0
+                      ? "bg-green-100 text-green-800"
+                      : "bg-red-100 text-red-700"
+                  }`}
+                >
+                  {producto.stock_disponible > 0
+                    ? `Stock disponible: ${producto.stock_disponible}`
+                    : "Agotado"}
                 </span>
               </div>
 
@@ -192,8 +320,9 @@ export default function DetalleProducto() {
               {cantidadEnCarrito > 0 ? (
                 <div className="flex items-center justify-between bg-blue-50 border-2 border-[#0f3faf] rounded-2xl p-2">
                   <button
+                    type="button"
                     onClick={() => eliminarDelCarrito(producto.id)}
-                    className="w-12 h-12 bg-white rounded-xl font-black text-2xl text-[#0f3faf] shadow-sm hover:bg-gray-100"
+                    className="w-12 h-12 bg-white rounded-xl font-black text-2xl text-[#0f3faf] shadow-sm hover:bg-gray-100 cursor-pointer"
                   >
                     −
                   </button>
@@ -201,33 +330,39 @@ export default function DetalleProducto() {
                     {cantidadEnCarrito} en tu carrito
                   </span>
                   <button
+                    type="button"
                     onClick={() => agregarAlCarrito(producto)}
                     disabled={cantidadEnCarrito >= producto.stock_disponible}
-                    className="w-12 h-12 bg-[#0f3faf] text-white rounded-xl font-black text-2xl shadow-sm hover:bg-blue-800 disabled:opacity-40"
+                    className="w-12 h-12 bg-[#0f3faf] text-white rounded-xl font-black text-2xl shadow-sm hover:bg-blue-800 disabled:opacity-40 cursor-pointer"
                   >
                     +
                   </button>
                 </div>
               ) : (
                 <button
+                  type="button"
                   onClick={() => agregarAlCarrito(producto)}
                   disabled={producto.stock_disponible <= 0}
-                  className="w-full bg-[#0f3faf] hover:bg-blue-800 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-lg shadow-lg shadow-blue-200 transition-colors"
+                  className="w-full bg-[#0f3faf] hover:bg-blue-800 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-lg shadow-lg shadow-blue-200 transition-colors cursor-pointer"
                 >
-                  {producto.stock_disponible > 0 ? "🛒 Agregar al Carrito" : "Sin Stock"}
+                  {producto.stock_disponible > 0
+                    ? "🛒 Agregar al Carrito"
+                    : "Sin Stock"}
                 </button>
               )}
 
               <div className="flex gap-3 pt-2">
                 <button
+                  type="button"
                   onClick={() => compartirProducto("whatsapp")}
-                  className="flex-1 bg-green-50 text-green-700 hover:bg-green-100 font-bold py-2.5 rounded-xl text-xs transition-colors"
+                  className="flex-1 bg-green-50 text-green-700 hover:bg-green-100 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
                 >
                   📱 Compartir por WhatsApp
                 </button>
                 <button
+                  type="button"
                   onClick={() => compartirProducto("copiar")}
-                  className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold py-2.5 rounded-xl text-xs transition-colors"
+                  className="flex-1 bg-gray-100 text-gray-700 hover:bg-gray-200 font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
                 >
                   🔗 Copiar Enlace
                 </button>
@@ -235,6 +370,30 @@ export default function DetalleProducto() {
             </div>
           </div>
         </div>
+
+        {/* 🎬 SECCIÓN DEDICADA DE VIDEO DEMOSTRATIVO (YOUTUBE O GOOGLE DRIVE) */}
+        {infoVideo && (
+          <div className="mt-6 bg-white rounded-3xl shadow-sm border p-5 sm:p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-black text-base sm:text-xl text-gray-900 flex items-center gap-2">
+                <span>🎬</span> Video Demostrativo del Producto
+              </h2>
+              <span className="text-[11px] font-black uppercase px-2.5 py-1 rounded-full bg-blue-50 text-[#0f3faf]">
+                {infoVideo.tipo === "drive" ? "Google Drive" : "YouTube"}
+              </span>
+            </div>
+            <div className="w-full max-w-3xl mx-auto aspect-video rounded-2xl overflow-hidden bg-black shadow-md border">
+              <iframe
+                src={infoVideo.embedUrl}
+                title={`Video demostrativo de ${producto.titulo}`}
+                className="w-full h-full border-0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                loading="lazy"
+              />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
