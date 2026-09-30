@@ -1,136 +1,85 @@
-import { supabase } from "../../../lib/supabase";
+import "./globals.css";
+import { CartProvider } from "../context/CartContext";
+// ⚠️ Si tienes un menú de navegación global, descomenta la siguiente línea (ajustando la ruta si es necesario):
+// import LayoutWrapper from "./components/LayoutWrapper";
 
-const URL_BASE = "https://catalogo-tech-universe.vercel.app";
-
-async function obtenerProducto(rawId) {
-  if (!rawId) return null;
-  const idDecodificado = decodeURIComponent(rawId);
-
-  const { data: porSlug } = await supabase
-    .from("productos")
-    .select("*")
-    .eq("slug", idDecodificado)
-    .maybeSingle();
-
-  if (porSlug) return porSlug;
-
-  if (!isNaN(idDecodificado)) {
-    const { data: porId } = await supabase
-      .from("productos")
-      .select("*")
-      .eq("id", Number(idDecodificado))
-      .maybeSingle();
-    return porId;
-  }
-
-  return null;
-}
-
-export async function generateMetadata({ params }) {
-  const resolvedParams = await params;
-  const prod = await obtenerProducto(resolvedParams?.id);
-
-  if (!prod) {
-    return {
-      title: "Producto | TECH UNIVERSE San Miguel, El Salvador",
-    };
-  }
-
-  const precio = parseFloat(prod.precio_actual || 0).toFixed(2);
-  const imagenPrincipal = prod.imagenes?.[0] || `${URL_BASE}/favicon.ico`;
-  const urlProducto = `${URL_BASE}/producto/${prod.slug || prod.id}`;
-  const descripcionCorta = prod.descripcion
-    ? `${prod.descripcion.slice(0, 145)}... Disponible en San Miguel y todo El Salvador.`
-    : `Compra ${prod.titulo} a $${precio} en San Miguel, El Salvador. Herramientas, redes y electrónica en TECH UNIVERSE.`;
-
-  return {
-    title: `${prod.titulo} - $${precio} | En San Miguel, El Salvador | TECH UNIVERSE`,
-    description: descripcionCorta,
-    keywords: [
-      prod.titulo,
-      `${prod.titulo} San Miguel`,
-      `${prod.titulo} El Salvador`,
-      "herramientas San Miguel",
-      "electrónica San Miguel",
-      "equipos de redes El Salvador",
-      "TECH UNIVERSE",
-    ],
-    alternates: {
-      canonical: urlProducto,
+// 1. METADATOS GLOBALES PARA SEO LOCAL Y REDES SOCIALES
+export const metadata = {
+  metadataBase: new URL("https://catalogo-tech-universe.vercel.app"),
+  title: {
+    default: "TECH UNIVERSE | Tienda de Tecnología y Herramientas en San Miguel",
+    template: "%s | TECH UNIVERSE El Salvador",
+  },
+  description:
+    "Compra artículos de tecnología, equipos de redes, herramientas de reparación y electrónica al mejor precio en San Miguel y todo El Salvador.",
+  keywords: [
+    "tecnología San Miguel",
+    "herramientas para celulares El Salvador",
+    "venta de desarmadores San Miguel",
+    "equipos de redes",
+    "Tech Universe El Salvador",
+    "electrónica San Miguel",
+    "comprar hub usb San Miguel",
+  ],
+  openGraph: {
+    title: "TECH UNIVERSE | Tienda de Tecnología en San Miguel",
+    description: "Catálogo virtual de tecnología y herramientas en El Salvador.",
+    url: "https://catalogo-tech-universe.vercel.app",
+    siteName: "TECH UNIVERSE El Salvador",
+    locale: "es_SV",
+    type: "website",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
     },
-    openGraph: {
-      title: `${prod.titulo} - $${precio} | TECH UNIVERSE`,
-      description: descripcionCorta,
-      url: urlProducto,
-      siteName: "TECH UNIVERSE El Salvador",
-      images: [
-        {
-          url: imagenPrincipal,
-          width: 800,
-          height: 800,
-          alt: `${prod.titulo} en San Miguel, El Salvador`,
-        },
-      ],
-      locale: "es_SV",
-      type: "website",
+  },
+  // 2. AQUÍ PONDRÁS EL CÓDIGO DE GOOGLE SEARCH CONSOLE LUEGO
+  // verification: {
+  //   google: "TU_CODIGO_DE_VERIFICACION_AQUI",
+  // },
+};
+
+export default function RootLayout({ children }) {
+  // 3. ESTRUCTURA DE NEGOCIO LOCAL PARA GOOGLE MAPS Y BÚSQUEDAS (JSON-LD)
+  const jsonLdLocalBusiness = {
+    "@context": "https://schema.org",
+    "@type": "ElectronicsStore",
+    name: "TECH UNIVERSE",
+    image: "https://catalogo-tech-universe.vercel.app/favicon.ico", 
+    description: "Tienda de tecnología, redes y herramientas en San Miguel, El Salvador.",
+    address: {
+      "@type": "PostalAddress",
+      addressLocality: "San Miguel",
+      addressRegion: "San Miguel",
+      addressCountry: "SV",
     },
+    url: "https://catalogo-tech-universe.vercel.app",
+    telephone: "+50370000000", // Cámbialo por el número real de tu tienda
+    priceRange: "$$",
   };
-}
-
-export default async function ProductoLayout({ children, params }) {
-  const resolvedParams = await params;
-  const prod = await obtenerProducto(resolvedParams?.id);
-
-  // Datos Estructurados (Rich Snippets) para que Google muestre Foto + Precio + Stock en resultados
-  const jsonLd = prod
-    ? {
-        "@context": "https://schema.org",
-        "@type": "Product",
-        name: prod.titulo,
-        image: prod.imagenes || [],
-        description: prod.descripcion,
-        sku: String(prod.id),
-        brand: {
-          "@type": "Brand",
-          name: "TECH UNIVERSE",
-        },
-        offers: {
-          "@type": "Offer",
-          url: `${URL_BASE}/producto/${prod.slug || prod.id}`,
-          priceCurrency: "USD",
-          price: parseFloat(prod.precio_actual || 0).toFixed(2),
-          itemCondition: "https://schema.org/NewCondition",
-          availability:
-            prod.stock_disponible > 0
-              ? "https://schema.org/InStock"
-              : "https://schema.org/OutOfStock",
-          areaServed: {
-            "@type": "Place",
-            name: "San Miguel, El Salvador",
-          },
-          seller: {
-            "@type": "LocalBusiness",
-            name: "TECH UNIVERSE San Miguel",
-            address: {
-              "@type": "PostalAddress",
-              addressLocality: "San Miguel",
-              addressRegion: "San Miguel",
-              addressCountry: "SV",
-            },
-          },
-        },
-      }
-    : null;
 
   return (
-    <>
-      {jsonLd && (
+    <html lang="es">
+      <head>
+        {/* Inyección invisible de datos estructurados para Google */}
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdLocalBusiness) }}
         />
-      )}
-      {children}
-    </>
+      </head>
+      <body className="bg-gray-50 text-gray-900 antialiased">
+        <CartProvider>
+          {/* Si usas un LayoutWrapper para tu barra de navegación, envuelve a {children} así: */}
+          {/* <LayoutWrapper>{children}</LayoutWrapper> */}
+          
+          {children}
+        </CartProvider>
+      </body>
+    </html>
   );
 }
