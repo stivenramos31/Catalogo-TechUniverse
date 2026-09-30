@@ -117,7 +117,7 @@ export default function ModuloOfertas({ productos }) {
   };
 
   return (
-    <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in max-w-6xl mx-auto">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in max-w-6xl mx-auto overflow-hidden">
       <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
         <div>
           <h2 className="font-black text-xl sm:text-2xl text-gray-800">
@@ -136,7 +136,7 @@ export default function ModuloOfertas({ productos }) {
         </button>
       </div>
 
-      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL (Sin recortes ni scroll horizontal) */}
+      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL (Con foto w-20 h-20 fija y sin desbordamiento) */}
       <div className="md:hidden space-y-3">
         {ofertas.length === 0 && (
           <p className="text-center p-8 text-gray-400 font-bold text-sm border rounded-xl">
@@ -157,19 +157,19 @@ export default function ModuloOfertas({ productos }) {
           return (
             <div
               key={oferta.id}
-              className="border border-gray-200 rounded-2xl p-3.5 bg-white shadow-2xs space-y-3"
+              className="border border-gray-200 rounded-2xl p-3.5 bg-white shadow-2xs space-y-3 overflow-hidden"
             >
               <div className="flex items-start gap-3">
                 <img
                   src={productoVinculado?.imagenes?.[0] || "/favicon.ico"}
                   alt={productoVinculado?.titulo || "Producto"}
-                  className="w-18 h-18 object-contain bg-white p-1 rounded-xl border border-gray-200 flex-shrink-0"
+                  className="w-20 h-20 object-contain bg-white p-1.5 rounded-xl border border-gray-200 flex-shrink-0"
                 />
 
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-1.5 mb-1">
                     <span
-                      className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                      className={`text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap ${
                         finPasado
                           ? "bg-gray-100 text-gray-500"
                           : "bg-red-100 text-[#dc2626]"
@@ -177,7 +177,7 @@ export default function ModuloOfertas({ productos }) {
                     >
                       {finPasado ? "Finalizada" : "⚡ Activa"}
                     </span>
-                    <span className="bg-blue-50 text-[#0f3faf] border border-blue-200 text-[10px] font-black px-2 py-0.5 rounded-full">
+                    <span className="bg-blue-50 text-[#0f3faf] border border-blue-200 text-[10px] font-black px-2 py-0.5 rounded-full whitespace-nowrap">
                       Mín. {oferta.stock_promocion} {oferta.stock_promocion > 1 ? "uds." : "ud."}
                     </span>
                   </div>
@@ -186,12 +186,12 @@ export default function ModuloOfertas({ productos }) {
                     {productoVinculado?.titulo || "Producto no encontrado"}
                   </h3>
 
-                  <div className="flex items-baseline gap-2 mt-1">
-                    <span className="text-red-600 font-black text-base">
+                  <div className="flex flex-wrap items-baseline gap-2 mt-1">
+                    <span className="text-red-600 font-black text-base whitespace-nowrap">
                       ${precioPromo.toFixed(2)} c/u
                     </span>
                     {precioNormal > 0 && (
-                      <span className="text-gray-400 line-through text-xs font-bold">
+                      <span className="text-gray-400 line-through text-xs font-bold whitespace-nowrap">
                         ${precioNormal.toFixed(2)}
                       </span>
                     )}
@@ -200,17 +200,17 @@ export default function ModuloOfertas({ productos }) {
               </div>
 
               <div className="bg-gray-50 rounded-xl p-2.5 text-[11px] text-gray-600 space-y-1 border border-gray-100">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="font-bold text-gray-500">Inicio:</span>
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-gray-800 text-right">
                     {oferta.fecha_inicio
                       ? new Date(oferta.fecha_inicio).toLocaleString()
                       : "Inmediato"}
                   </span>
                 </div>
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-2">
                   <span className="font-bold text-gray-500">Fin:</span>
-                  <span className="font-semibold text-gray-800">
+                  <span className="font-semibold text-gray-800 text-right">
                     {oferta.fecha_fin
                       ? new Date(oferta.fecha_fin).toLocaleString()
                       : "Sin límite"}
@@ -222,14 +222,14 @@ export default function ModuloOfertas({ productos }) {
                 <button
                   type="button"
                   onClick={() => abrirModal(oferta)}
-                  className="bg-blue-100 text-blue-700 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer"
+                  className="bg-blue-100 text-blue-700 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer text-center"
                 >
                   ✏️ Editar
                 </button>
                 <button
                   type="button"
                   onClick={() => eliminarOferta(oferta.id)}
-                  className="bg-red-50 text-red-600 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer"
+                  className="bg-red-50 text-red-600 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer text-center"
                 >
                   🗑️ Borrar
                 </button>
@@ -435,7 +435,10 @@ export default function ModuloOfertas({ productos }) {
                     type="datetime-local"
                     value={nuevaOferta.fecha_fin}
                     onChange={(e) =>
-                      setNuevaOferta({ ...nuevaOferta, fecha_fin: e.target.value })
+                      setNuevaOferta({
+                        ...nuevaOferta,
+                        fecha_fin: e.target.value,
+                      })
                     }
                     className="w-full border-2 rounded-xl px-3.5 py-3 bg-white font-bold text-sm outline-none focus:border-[#0f3faf]"
                     required
