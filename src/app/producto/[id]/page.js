@@ -46,7 +46,6 @@ export default function DetalleProducto() {
 
   const [producto, setProducto] = useState(null);
   const [categoriaNombre, setCategoriaNombre] = useState("");
-  // Puede ser el índice numérico de la foto (0, 1, 2...) o "video"
   const [imagenActiva, setImagenActiva] = useState(0);
   const [cargando, setCargando] = useState(true);
 
@@ -180,9 +179,9 @@ export default function DetalleProducto() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-6 sm:py-8 px-4">
+    <div className="min-h-screen bg-gray-50 py-5 sm:py-8 px-3 sm:px-4">
       <div className="max-w-6xl mx-auto">
-        <div className="mb-5 text-xs sm:text-sm font-bold text-gray-500 flex flex-wrap items-center gap-2">
+        <div className="mb-4 sm:mb-5 text-xs sm:text-sm font-bold text-gray-500 flex flex-wrap items-center gap-2">
           <Link href="/catalogo" className="hover:text-[#0f3faf] transition-colors">
             ← Volver al Catálogo
           </Link>
@@ -191,12 +190,12 @@ export default function DetalleProducto() {
           )}
         </div>
 
-        <div className="bg-white rounded-3xl shadow-sm border p-5 sm:p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+        <div className="bg-white rounded-3xl shadow-sm border p-4 sm:p-6 md:p-10 grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-10">
           {/* Galería de Imágenes y Video */}
           <div>
-            <div className="aspect-square bg-white rounded-2xl border overflow-hidden flex items-center justify-center p-2 sm:p-4 mb-4 relative">
+            <div className="aspect-square max-h-[320px] sm:max-h-[440px] w-full mx-auto bg-white rounded-2xl border overflow-hidden flex items-center justify-center p-3 sm:p-4 mb-3 sm:mb-4 relative">
               {tieneDescuento && imagenActiva !== "video" && (
-                <span className="absolute top-4 left-4 z-10 bg-[#e11d48] text-white text-xs font-black px-3 py-1 rounded-lg shadow-xs">
+                <span className="absolute top-3 left-3 z-10 bg-[#e11d48] text-white text-xs font-black px-3 py-1 rounded-lg shadow-xs">
                   -{porcentajeDescuento}% OFF
                 </span>
               )}
@@ -218,15 +217,15 @@ export default function DetalleProducto() {
               )}
             </div>
 
-            {/* Miniaturas de Fotos + Botón de Video si existe */}
+            {/* Miniaturas de Fotos + Botón de Video con tamaño fijo en Android (w-16 h-16) y PC (sm:w-20 sm:h-20) */}
             {(imagenes.length > 1 || infoVideo) && (
-              <div className="flex gap-3 overflow-x-auto pb-2">
+              <div className="flex items-center gap-2.5 sm:gap-3 overflow-x-auto pb-2">
                 {imagenes.map((img, idx) => (
                   <button
                     key={idx}
                     type="button"
                     onClick={() => setImagenActiva(idx)}
-                    className={`w-18 h-18 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 p-1 transition-all cursor-pointer ${
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 p-1 bg-white transition-all cursor-pointer ${
                       imagenActiva === idx
                         ? "border-[#0f3faf] shadow-xs"
                         : "border-gray-200 opacity-60 hover:opacity-100"
@@ -234,7 +233,7 @@ export default function DetalleProducto() {
                   >
                     <img
                       src={img}
-                      alt=""
+                      alt={`Miniatura ${idx + 1}`}
                       className="w-full h-full object-contain"
                     />
                   </button>
@@ -244,14 +243,14 @@ export default function DetalleProducto() {
                   <button
                     type="button"
                     onClick={() => setImagenActiva("video")}
-                    className={`w-18 h-18 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
+                    className={`w-16 h-16 sm:w-20 sm:h-20 rounded-xl border-2 overflow-hidden flex-shrink-0 flex flex-col items-center justify-center gap-1 transition-all cursor-pointer ${
                       imagenActiva === "video"
                         ? "border-[#e11d48] bg-red-50 text-[#e11d48] shadow-xs"
                         : "border-gray-200 bg-gray-900 text-white opacity-85 hover:opacity-100"
                     }`}
                   >
-                    <span className="text-xl leading-none">▶️</span>
-                    <span className="text-[10px] font-black uppercase tracking-wider">
+                    <span className="text-lg sm:text-xl leading-none">▶️</span>
+                    <span className="text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
                       Video
                     </span>
                   </button>
@@ -281,22 +280,22 @@ export default function DetalleProducto() {
                 )}
               </div>
 
-              <h1 className="text-2xl md:text-3xl font-black text-gray-900 mt-3 mb-4">
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-gray-900 mt-3 mb-3 sm:mb-4">
                 {producto.titulo}
               </h1>
 
-              <div className="flex items-baseline gap-3 mb-6">
-                <span className="text-3xl md:text-4xl font-black text-[#e11d48]">
+              <div className="flex items-baseline gap-3 mb-5 sm:mb-6">
+                <span className="text-2xl sm:text-3xl md:text-4xl font-black text-[#e11d48]">
                   ${parseFloat(producto.precio_actual).toFixed(2)}
                 </span>
                 {tieneDescuento && (
-                  <span className="text-lg font-bold text-gray-400 line-through">
+                  <span className="text-base sm:text-lg font-bold text-gray-400 line-through">
                     ${parseFloat(producto.precio_anterior).toFixed(2)}
                   </span>
                 )}
               </div>
 
-              <div className="mb-6">
+              <div className="mb-5 sm:mb-6">
                 <span
                   className={`text-xs font-black px-3 py-1 rounded-full ${
                     producto.stock_disponible > 0
@@ -310,30 +309,30 @@ export default function DetalleProducto() {
                 </span>
               </div>
 
-              <div className="prose text-gray-600 text-sm md:text-base whitespace-pre-line mb-8 border-t pt-4">
+              <div className="prose text-gray-600 text-sm md:text-base whitespace-pre-line mb-6 sm:mb-8 border-t pt-4">
                 {producto.descripcion}
               </div>
             </div>
 
             {/* Controles de Compra y Compartir */}
-            <div className="space-y-4 border-t pt-6">
+            <div className="space-y-4 border-t pt-5 sm:pt-6">
               {cantidadEnCarrito > 0 ? (
                 <div className="flex items-center justify-between bg-blue-50 border-2 border-[#0f3faf] rounded-2xl p-2">
                   <button
                     type="button"
                     onClick={() => eliminarDelCarrito(producto.id)}
-                    className="w-12 h-12 bg-white rounded-xl font-black text-2xl text-[#0f3faf] shadow-sm hover:bg-gray-100 cursor-pointer"
+                    className="w-11 h-11 sm:w-12 sm:h-12 bg-white rounded-xl font-black text-2xl text-[#0f3faf] shadow-sm hover:bg-gray-100 cursor-pointer"
                   >
                     −
                   </button>
-                  <span className="font-black text-lg text-[#0f3faf]">
+                  <span className="font-black text-base sm:text-lg text-[#0f3faf]">
                     {cantidadEnCarrito} en tu carrito
                   </span>
                   <button
                     type="button"
                     onClick={() => agregarAlCarrito(producto)}
                     disabled={cantidadEnCarrito >= producto.stock_disponible}
-                    className="w-12 h-12 bg-[#0f3faf] text-white rounded-xl font-black text-2xl shadow-sm hover:bg-blue-800 disabled:opacity-40 cursor-pointer"
+                    className="w-11 h-11 sm:w-12 sm:h-12 bg-[#0f3faf] text-white rounded-xl font-black text-2xl shadow-sm hover:bg-blue-800 disabled:opacity-40 cursor-pointer"
                   >
                     +
                   </button>
@@ -343,7 +342,7 @@ export default function DetalleProducto() {
                   type="button"
                   onClick={() => agregarAlCarrito(producto)}
                   disabled={producto.stock_disponible <= 0}
-                  className="w-full bg-[#0f3faf] hover:bg-blue-800 disabled:bg-gray-300 text-white font-black py-4 rounded-2xl text-lg shadow-lg shadow-blue-200 transition-colors cursor-pointer"
+                  className="w-full bg-[#0f3faf] hover:bg-blue-800 disabled:bg-gray-300 text-white font-black py-3.5 sm:py-4 rounded-2xl text-base sm:text-lg shadow-lg shadow-blue-200 transition-colors cursor-pointer"
                 >
                   {producto.stock_disponible > 0
                     ? "🛒 Agregar al Carrito"
@@ -351,7 +350,7 @@ export default function DetalleProducto() {
                 </button>
               )}
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-1">
                 <button
                   type="button"
                   onClick={() => compartirProducto("whatsapp")}

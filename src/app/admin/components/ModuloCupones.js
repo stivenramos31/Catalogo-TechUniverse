@@ -38,12 +38,33 @@ export default function ModuloCupones() {
     cargarCupones();
   }, []);
 
+  // Bloquear pull-to-refresh en Android cuando el modal está abierto
+  useEffect(() => {
+    if (!mostrarModal) return;
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+    const prevHtml = htmlEl.style.overscrollBehaviorY;
+    const prevBody = bodyEl.style.overscrollBehaviorY;
+
+    htmlEl.style.overscrollBehaviorY = "none";
+    bodyEl.style.overscrollBehaviorY = "none";
+
+    return () => {
+      htmlEl.style.overscrollBehaviorY = prevHtml;
+      bodyEl.style.overscrollBehaviorY = prevBody;
+    };
+  }, [mostrarModal]);
+
   // Protección contra botón "Atrás" si hay cambios sin guardar en el modal
   useEffect(() => {
     const handlePopState = () => {
       if (mostrarModal) {
         if (formModificado) {
-          if (window.confirm("¿Seguro que deseas salir? Tienes cambios sin guardar en el cupón.")) {
+          if (
+            window.confirm(
+              "¿Seguro que deseas salir? Tienes cambios sin guardar en el cupón."
+            )
+          ) {
             setMostrarModal(false);
             setFormModificado(false);
           } else {
@@ -154,7 +175,11 @@ export default function ModuloCupones() {
   };
 
   const reiniciarUsos = async (cupon) => {
-    if (window.confirm(`¿Deseas reiniciar el contador de usos de "${cupon.codigo}" a 0?`)) {
+    if (
+      window.confirm(
+        `¿Deseas reiniciar el contador de usos de "${cupon.codigo}" a 0?`
+      )
+    ) {
       const { error } = await supabase
         .from("cupones")
         .update({ usos_actuales: 0 })
@@ -165,7 +190,11 @@ export default function ModuloCupones() {
   };
 
   const eliminarCupon = async (id, codigo) => {
-    if (window.confirm(`¿Seguro que deseas eliminar definitivamente el cupón "${codigo}"?`)) {
+    if (
+      window.confirm(
+        `¿Seguro que deseas eliminar definitivamente el cupón "${codigo}"?`
+      )
+    ) {
       const { error } = await supabase.from("cupones").delete().eq("id", id);
       if (error) alert("Error al eliminar: " + error.message);
       else cargarCupones();
@@ -173,147 +202,280 @@ export default function ModuloCupones() {
   };
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border animate-fade-in">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-5">
         <div>
-          <h2 className="font-black text-2xl text-gray-800">💸 Cupones de Descuento</h2>
-          <p className="text-xs text-gray-500 font-medium mt-1">
+          <h2 className="font-black text-xl sm:text-2xl text-gray-800">
+            💸 Cupones de Descuento
+          </h2>
+          <p className="text-xs text-gray-500 font-medium mt-0.5">
             Validación protegida en servidor (Zero-Trust). Los códigos están ocultos al público.
           </p>
         </div>
         <button
+          type="button"
           onClick={() => abrirModal()}
-          className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-6 py-3 rounded-xl transition-colors shadow-sm"
+          className="w-full sm:w-auto bg-[#16a34a] hover:bg-green-700 text-white font-black px-5 py-3 rounded-xl transition-colors shadow-sm text-sm cursor-pointer text-center"
         >
           + Nuevo Cupón
         </button>
       </div>
 
       {cargando ? (
-        <div className="py-16 text-center text-gray-400 font-bold">Cargando cupones...</div>
+        <div className="py-16 text-center text-gray-400 font-bold">
+          Cargando cupones...
+        </div>
+      ) : cupones.length === 0 ? (
+        <div className="py-12 text-center text-gray-400 font-bold border rounded-2xl bg-gray-50 px-4 text-sm">
+          No hay cupones registrados. Crea el primero con el botón "+ Nuevo Cupón".
+        </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
-            <thead className="bg-gray-100 border-b-2 border-gray-200">
-              <tr>
-                <th className="p-4 font-black text-gray-600">Código</th>
-                <th className="p-4 font-black text-gray-600">Descuento</th>
-                <th className="p-4 font-black text-gray-600">Compra Mín.</th>
-                <th className="p-4 font-black text-gray-600">Usos</th>
-                <th className="p-4 font-black text-gray-600">Expiración</th>
-                <th className="p-4 font-black text-gray-600">Estado</th>
-                <th className="p-4 font-black text-gray-600 text-right">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {cupones.length === 0 && (
-                <tr>
-                  <td colSpan="7" className="text-center p-8 text-gray-400 font-bold">
-                    No hay cupones registrados. Crea el primero con el botón "+ Nuevo Cupón".
-                  </td>
-                </tr>
-              )}
-              {cupones.map((c) => {
-                const expirado = c.fecha_expiracion && new Date(c.fecha_expiracion) < new Date();
-                const agotado = c.limite_usos !== null && c.usos_actuales >= c.limite_usos;
+        <>
+          {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL (Sin scroll horizontal) */}
+          <div className="md:hidden space-y-3">
+            {cupones.map((c) => {
+              const expirado =
+                c.fecha_expiracion && new Date(c.fecha_expiracion) < new Date();
+              const agotado =
+                c.limite_usos !== null && c.usos_actuales >= c.limite_usos;
 
-                return (
-                  <tr key={c.id} className="border-b hover:bg-blue-50/40 transition-colors">
-                    <td className="p-4">
-                      <span className="font-black text-[#0f3faf] bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg tracking-wider">
-                        {c.codigo}
+              return (
+                <div
+                  key={c.id}
+                  className="border border-gray-200 rounded-2xl p-3.5 bg-white shadow-2xs space-y-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-black text-sm text-[#0f3faf] bg-blue-50 border border-blue-200 px-3 py-1 rounded-xl tracking-wider">
+                      🏷️ {c.codigo}
+                    </span>
+
+                    {expirado ? (
+                      <span className="bg-red-100 text-red-700 text-[11px] font-black px-2.5 py-1 rounded-full">
+                        Expirado
                       </span>
-                    </td>
-                    <td className="p-4 font-black text-green-600 text-base">
-                      {c.tipo === "porcentaje"
-                        ? `${c.valor}% OFF`
-                        : `-$${parseFloat(c.valor).toFixed(2)}`}
-                    </td>
-                    <td className="p-4 font-bold text-gray-700">
-                      ${parseFloat(c.monto_minimo || 0).toFixed(2)}
-                    </td>
-                    <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <span className="font-black text-gray-800">
-                          {c.usos_actuales} / {c.limite_usos !== null ? c.limite_usos : "∞"}
+                    ) : agotado ? (
+                      <span className="bg-orange-100 text-orange-700 text-[11px] font-black px-2.5 py-1 rounded-full">
+                        Agotado
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => alternarEstado(c)}
+                        className={`text-[11px] font-black px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                          c.activo
+                            ? "bg-green-100 text-green-700 hover:bg-green-200"
+                            : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                        }`}
+                      >
+                        {c.activo ? "● Activo" : "○ Pausado"}
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 bg-gray-50 p-2.5 rounded-xl border border-gray-100 text-center">
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">
+                        Descuento
+                      </p>
+                      <p className="font-black text-green-600 text-sm mt-0.5">
+                        {c.tipo === "porcentaje"
+                          ? `${c.valor}% OFF`
+                          : `-$${parseFloat(c.valor).toFixed(2)}`}
+                      </p>
+                    </div>
+                    <div className="border-x border-gray-200 px-1">
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">
+                        Mínimo
+                      </p>
+                      <p className="font-black text-gray-800 text-sm mt-0.5">
+                        ${parseFloat(c.monto_minimo || 0).toFixed(2)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase">
+                        Usos
+                      </p>
+                      <div className="flex items-center justify-center gap-1 mt-0.5">
+                        <span className="font-black text-gray-800 text-sm">
+                          {c.usos_actuales}/{c.limite_usos !== null ? c.limite_usos : "∞"}
                         </span>
-                        {c.usos_actuales > 0 && (
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-[11px] text-gray-500 font-bold px-1">
+                    <span>
+                      ⏳ Expira:{" "}
+                      <strong className="text-gray-700">
+                        {c.fecha_expiracion
+                          ? new Date(c.fecha_expiracion).toLocaleDateString()
+                          : "Sin límite"}
+                      </strong>
+                    </span>
+
+                    {c.usos_actuales > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => reiniciarUsos(c)}
+                        className="text-[11px] bg-gray-100 hover:bg-gray-200 text-gray-700 px-2.5 py-1 rounded-lg font-black cursor-pointer"
+                      >
+                        ↺ Resetear usos
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-1 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => abrirModal(c)}
+                      className="bg-blue-100 text-blue-700 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer"
+                    >
+                      ✏️ Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => eliminarCupon(c.id, c.codigo)}
+                      className="bg-red-50 text-red-600 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer"
+                    >
+                      🗑️ Borrar
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 💻 VISTA EN TABLA PARA PC / MONITORES */}
+          <div className="hidden md:block overflow-x-auto border rounded-xl">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-gray-100 border-b-2 border-gray-200">
+                <tr>
+                  <th className="p-4 font-black text-gray-600">Código</th>
+                  <th className="p-4 font-black text-gray-600">Descuento</th>
+                  <th className="p-4 font-black text-gray-600">Compra Mín.</th>
+                  <th className="p-4 font-black text-gray-600">Usos</th>
+                  <th className="p-4 font-black text-gray-600">Expiración</th>
+                  <th className="p-4 font-black text-gray-600">Estado</th>
+                  <th className="p-4 font-black text-gray-600 text-right">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {cupones.map((c) => {
+                  const expirado =
+                    c.fecha_expiracion &&
+                    new Date(c.fecha_expiracion) < new Date();
+                  const agotado =
+                    c.limite_usos !== null && c.usos_actuales >= c.limite_usos;
+
+                  return (
+                    <tr
+                      key={c.id}
+                      className="border-b hover:bg-blue-50/40 transition-colors"
+                    >
+                      <td className="p-4">
+                        <span className="font-black text-[#0f3faf] bg-blue-50 border border-blue-200 px-3 py-1 rounded-lg tracking-wider">
+                          {c.codigo}
+                        </span>
+                      </td>
+                      <td className="p-4 font-black text-green-600 text-base">
+                        {c.tipo === "porcentaje"
+                          ? `${c.valor}% OFF`
+                          : `-$${parseFloat(c.valor).toFixed(2)}`}
+                      </td>
+                      <td className="p-4 font-bold text-gray-700">
+                        ${parseFloat(c.monto_minimo || 0).toFixed(2)}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-gray-800">
+                            {c.usos_actuales} /{" "}
+                            {c.limite_usos !== null ? c.limite_usos : "∞"}
+                          </span>
+                          {c.usos_actuales > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => reiniciarUsos(c)}
+                              title="Reiniciar contador a 0"
+                              className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold cursor-pointer"
+                            >
+                              ↺ Reset
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                      <td className="p-4 text-xs font-bold text-gray-500">
+                        {c.fecha_expiracion
+                          ? new Date(c.fecha_expiracion).toLocaleDateString()
+                          : "Sin límite"}
+                      </td>
+                      <td className="p-4">
+                        {expirado ? (
+                          <span className="bg-red-100 text-red-700 text-xs font-black px-3 py-1 rounded-full">
+                            Expirado
+                          </span>
+                        ) : agotado ? (
+                          <span className="bg-orange-100 text-orange-700 text-xs font-black px-3 py-1 rounded-full">
+                            Agotado
+                          </span>
+                        ) : (
                           <button
-                            onClick={() => reiniciarUsos(c)}
-                            title="Reiniciar contador a 0"
-                            className="text-[10px] bg-gray-100 hover:bg-gray-200 text-gray-600 px-2 py-0.5 rounded font-bold"
+                            type="button"
+                            onClick={() => alternarEstado(c)}
+                            className={`text-xs font-black px-3 py-1 rounded-full transition-colors cursor-pointer ${
+                              c.activo
+                                ? "bg-green-100 text-green-700 hover:bg-green-200"
+                                : "bg-gray-200 text-gray-600 hover:bg-gray-300"
+                            }`}
                           >
-                            ↺ Reset
+                            {c.activo ? "● Activo" : "○ Pausado"}
                           </button>
                         )}
-                      </div>
-                    </td>
-                    <td className="p-4 text-xs font-bold text-gray-500">
-                      {c.fecha_expiracion
-                        ? new Date(c.fecha_expiracion).toLocaleDateString()
-                        : "Sin límite"}
-                    </td>
-                    <td className="p-4">
-                      {expirado ? (
-                        <span className="bg-red-100 text-red-700 text-xs font-black px-3 py-1 rounded-full">
-                          Expirado
-                        </span>
-                      ) : agotado ? (
-                        <span className="bg-orange-100 text-orange-700 text-xs font-black px-3 py-1 rounded-full">
-                          Agotado
-                        </span>
-                      ) : (
+                      </td>
+                      <td className="p-4 text-right space-x-2 whitespace-nowrap">
                         <button
-                          onClick={() => alternarEstado(c)}
-                          className={`text-xs font-black px-3 py-1 rounded-full transition-colors ${
-                            c.activo
-                              ? "bg-green-100 text-green-700 hover:bg-green-200"
-                              : "bg-gray-200 text-gray-600 hover:bg-gray-300"
-                          }`}
+                          type="button"
+                          onClick={() => abrirModal(c)}
+                          className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-blue-200 cursor-pointer"
                         >
-                          {c.activo ? "● Activo" : "○ Pausado"}
+                          Editar
                         </button>
-                      )}
-                    </td>
-                    <td className="p-4 text-right space-x-2">
-                      <button
-                        onClick={() => abrirModal(c)}
-                        className="bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-blue-200"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => eliminarCupon(c.id, c.codigo)}
-                        className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-red-100"
-                      >
-                        Borrar
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        <button
+                          type="button"
+                          onClick={() => eliminarCupon(c.id, c.codigo)}
+                          className="bg-red-50 text-red-600 px-3 py-1.5 rounded-lg text-xs font-black hover:bg-red-100 cursor-pointer"
+                        >
+                          Borrar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {/* Modal Crear / Editar Cupón */}
       {mostrarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl overflow-hidden">
-            <div className="border-b px-6 py-4 flex justify-between items-center bg-gray-50">
-              <h3 className="font-black text-xl text-gray-800">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm overscroll-none">
+          <div className="bg-white w-full max-w-lg max-h-[92vh] overflow-y-auto overscroll-contain rounded-3xl shadow-2xl flex flex-col">
+            <div className="sticky top-0 border-b px-5 sm:px-6 py-4 flex justify-between items-center bg-gray-50 z-10">
+              <h3 className="font-black text-lg sm:text-xl text-gray-800">
                 {cuponEditando ? "✏️ Editar Cupón" : "➕ Crear Nuevo Cupón"}
               </h3>
               <button
+                type="button"
                 onClick={intentarCerrarModal}
-                className="text-gray-400 hover:text-red-500 font-black text-xl"
+                className="text-gray-400 hover:text-red-500 font-black text-xl cursor-pointer"
               >
                 ✕
               </button>
             </div>
 
-            <form onSubmit={guardarCupon} className="p-6 space-y-4">
+            <form onSubmit={guardarCupon} className="p-5 sm:p-6 space-y-4">
               <div>
                 <label className="block text-xs font-black text-gray-700 uppercase mb-1">
                   Código del Cupón *
@@ -323,12 +485,14 @@ export default function ModuloCupones() {
                   required
                   placeholder="Ej: PROMO10 o VIP2026"
                   value={form.codigo}
-                  onChange={(e) => manejarCambio("codigo", e.target.value.toUpperCase())}
+                  onChange={(e) =>
+                    manejarCambio("codigo", e.target.value.toUpperCase())
+                  }
                   className="w-full border-2 rounded-xl px-4 py-2.5 font-black uppercase text-[#0f3faf] tracking-wider outline-none focus:border-[#0f3faf]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-gray-700 uppercase mb-1">
                     Tipo de Descuento *
@@ -336,7 +500,7 @@ export default function ModuloCupones() {
                   <select
                     value={form.tipo}
                     onChange={(e) => manejarCambio("tipo", e.target.value)}
-                    className="w-full border-2 rounded-xl px-3 py-2.5 font-bold outline-none focus:border-[#0f3faf]"
+                    className="w-full border-2 rounded-xl px-3 py-2.5 font-bold outline-none focus:border-[#0f3faf] bg-white"
                   >
                     <option value="porcentaje">Porcentaje (%)</option>
                     <option value="fijo">Monto Fijo ($)</option>
@@ -345,14 +509,18 @@ export default function ModuloCupones() {
 
                 <div>
                   <label className="block text-xs font-black text-gray-700 uppercase mb-1">
-                    {form.tipo === "porcentaje" ? "Porcentaje (%) *" : "Descuento ($) *"}
+                    {form.tipo === "porcentaje"
+                      ? "Porcentaje (%) *"
+                      : "Descuento ($) *"}
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     min="0.01"
                     required
-                    placeholder={form.tipo === "porcentaje" ? "Ej: 10" : "Ej: 5.00"}
+                    placeholder={
+                      form.tipo === "porcentaje" ? "Ej: 10" : "Ej: 5.00"
+                    }
                     value={form.valor}
                     onChange={(e) => manejarCambio("valor", e.target.value)}
                     className="w-full border-2 rounded-xl px-4 py-2.5 font-black text-green-700 outline-none focus:border-[#0f3faf]"
@@ -360,7 +528,7 @@ export default function ModuloCupones() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-black text-gray-700 uppercase mb-1">
                     Compra Mínima ($)
@@ -370,7 +538,9 @@ export default function ModuloCupones() {
                     step="0.01"
                     min="0"
                     value={form.monto_minimo}
-                    onChange={(e) => manejarCambio("monto_minimo", e.target.value)}
+                    onChange={(e) =>
+                      manejarCambio("monto_minimo", e.target.value)
+                    }
                     className="w-full border-2 rounded-xl px-4 py-2.5 font-bold outline-none focus:border-[#0f3faf]"
                   />
                 </div>
@@ -384,7 +554,9 @@ export default function ModuloCupones() {
                     min="1"
                     placeholder="Vacío = Ilimitado"
                     value={form.limite_usos}
-                    onChange={(e) => manejarCambio("limite_usos", e.target.value)}
+                    onChange={(e) =>
+                      manejarCambio("limite_usos", e.target.value)
+                    }
                     className="w-full border-2 rounded-xl px-4 py-2.5 font-bold outline-none focus:border-[#0f3faf]"
                   />
                 </div>
@@ -397,7 +569,9 @@ export default function ModuloCupones() {
                 <input
                   type="datetime-local"
                   value={form.fecha_expiracion}
-                  onChange={(e) => manejarCambio("fecha_expiracion", e.target.value)}
+                  onChange={(e) =>
+                    manejarCambio("fecha_expiracion", e.target.value)
+                  }
                   className="w-full border-2 rounded-xl px-4 py-2.5 font-medium outline-none focus:border-[#0f3faf]"
                 />
               </div>
@@ -409,21 +583,23 @@ export default function ModuloCupones() {
                   onChange={(e) => manejarCambio("activo", e.target.checked)}
                   className="w-5 h-5 rounded text-[#0f3faf]"
                 />
-                <span className="text-sm font-black text-gray-800">Cupón activo para usarse</span>
+                <span className="text-sm font-black text-gray-800">
+                  Cupón activo para usarse
+                </span>
               </label>
 
               <div className="flex gap-3 pt-3 border-t">
                 <button
                   type="button"
                   onClick={intentarCerrarModal}
-                  className="w-1/3 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200"
+                  className="w-1/3 bg-gray-100 text-gray-700 font-bold py-3 rounded-xl hover:bg-gray-200 text-sm cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
                   disabled={procesando}
-                  className="w-2/3 bg-[#0f3faf] text-white font-black py-3 rounded-xl hover:bg-blue-800"
+                  className="w-2/3 bg-[#0f3faf] text-white font-black py-3 rounded-xl hover:bg-blue-800 text-sm cursor-pointer"
                 >
                   {procesando ? "Guardando..." : "Guardar Cupón"}
                 </button>

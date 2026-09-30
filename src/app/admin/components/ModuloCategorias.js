@@ -9,10 +9,8 @@ export default function ModuloCategorias({ categorias, productos, recargarDatos 
   const [nuevaCategoria, setNuevaCategoria] = useState({ nombre: "", parent_id: "" });
   const [procesando, setProcesando] = useState(false);
 
-  // Filtrar solo las categorías principales (las que no tienen parent_id)
   const categoriasPrincipales = categorias.filter((c) => !c.parent_id);
 
-  // Obtener las subcategorías que pertenecen a una categoría principal
   const obtenerSubcategorias = (parentId) =>
     categorias.filter((c) => Number(c.parent_id) === Number(parentId));
 
@@ -86,7 +84,6 @@ export default function ModuloCategorias({ categorias, productos, recargarDatos 
     }
   };
 
-  // Ordenar visualmente: cada categoría principal seguida de sus subcategorías
   const categoriasOrdenadas = [];
   categoriasPrincipales.forEach((principal) => {
     categoriasOrdenadas.push({ ...principal, esSubcategoria: false });
@@ -107,10 +104,12 @@ export default function ModuloCategorias({ categorias, productos, recargarDatos 
   });
 
   return (
-    <div className="bg-white p-6 rounded-2xl shadow-sm border animate-fade-in max-w-5xl mx-auto">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-6">
+    <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in max-w-5xl mx-auto">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
         <div>
-          <h2 className="font-black text-2xl text-gray-800">Gestión de Categorías y Subcategorías</h2>
+          <h2 className="font-black text-xl sm:text-2xl text-gray-800">
+            Gestión de Categorías y Subcategorías
+          </h2>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
             Organiza tus productos en categorías principales o crea subcategorías específicas.
           </p>
@@ -118,13 +117,98 @@ export default function ModuloCategorias({ categorias, productos, recargarDatos 
         <button
           type="button"
           onClick={() => abrirModalCat()}
-          className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-5 py-3 rounded-xl transition-colors text-sm shadow-xs cursor-pointer"
+          className="w-full sm:w-auto bg-[#16a34a] hover:bg-green-700 text-white font-black px-5 py-3 rounded-xl transition-colors text-sm shadow-xs cursor-pointer text-center"
         >
           + Nueva Categoría
         </button>
       </div>
 
-      <div className="overflow-x-auto border rounded-xl">
+      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL (Sin scroll horizontal) */}
+      <div className="md:hidden space-y-2.5">
+        {categoriasOrdenadas.length === 0 && (
+          <p className="text-center p-6 text-gray-400 font-bold text-sm border rounded-xl">
+            No hay categorías registradas.
+          </p>
+        )}
+
+        {categoriasOrdenadas.map((cat) => {
+          const cantProductos = productos.filter((p) => p.categoria_id === cat.id).length;
+
+          return (
+            <div
+              key={cat.id}
+              className={`rounded-2xl border p-3.5 transition-all ${
+                cat.esSubcategoria
+                  ? "ml-4 bg-gray-50/90 border-gray-200 border-l-4 border-l-purple-500"
+                  : "bg-white border-gray-200 shadow-2xs"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    <span className="text-[10px] font-black text-gray-400">#{cat.id}</span>
+                    {cat.esSubcategoria ? (
+                      <span className="bg-purple-50 text-purple-700 border border-purple-200 font-black text-[10px] px-2 py-0.5 rounded-full">
+                        Subcategoría
+                      </span>
+                    ) : (
+                      <span className="bg-blue-50 text-[#0f3faf] border border-blue-200 font-black text-[10px] px-2 py-0.5 rounded-full">
+                        Principal
+                      </span>
+                    )}
+                    <span className="bg-gray-100 text-gray-700 font-bold px-2 py-0.5 rounded-full text-[10px]">
+                      {cantProductos} {cantProductos === 1 ? "prod." : "prods."}
+                    </span>
+                  </div>
+
+                  <p className="font-black text-gray-900 text-sm sm:text-base leading-snug">
+                    {cat.esSubcategoria && (
+                      <span className="text-purple-600 mr-1">↳</span>
+                    )}
+                    {cat.nombre}
+                  </p>
+
+                  {cat.esSubcategoria && (
+                    <p className="text-[11px] text-gray-500 font-semibold mt-0.5">
+                      Dentro de: <strong className="text-gray-700">{cat.nombrePadre || "Principal"}</strong>
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Botones siempre visibles debajo del nombre en Android */}
+              <div className="flex flex-wrap items-center justify-end gap-2 mt-3 pt-2.5 border-t border-gray-200/70">
+                {!cat.esSubcategoria && (
+                  <button
+                    type="button"
+                    onClick={() => abrirModalCat(null, cat.id)}
+                    className="flex-1 bg-green-50 text-green-700 border border-green-200 px-3 py-2 rounded-xl text-xs font-black hover:bg-green-100 transition-colors cursor-pointer text-center"
+                  >
+                    + Subcategoría
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => abrirModalCat(cat)}
+                  className="bg-blue-100 text-blue-700 px-3.5 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer"
+                >
+                  Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => eliminarCategoria(cat.id, cat.nombre)}
+                  className="bg-red-50 text-red-600 px-3.5 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer"
+                >
+                  Borrar
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 💻 VISTA EN TABLA PARA PC / MONITORES */}
+      <div className="hidden md:block overflow-x-auto border rounded-xl">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-100 border-b-2 border-gray-200">
             <tr>

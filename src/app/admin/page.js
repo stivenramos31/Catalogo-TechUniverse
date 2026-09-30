@@ -12,6 +12,16 @@ import ModuloCupones from "./components/ModuloCupones";
 import ModuloPerfil from "./components/ModuloPerfil";
 import ModuloVisitas from "./components/ModuloVisitas";
 
+const PESTANAS_ADMIN = [
+  { id: "productos", icono: "📦", texto: "Productos" },
+  { id: "categorias", icono: "🏷️", texto: "Categorías" },
+  { id: "ofertas", icono: "⚡", texto: "Ofertas" },
+  { id: "cotizaciones", icono: "📄", texto: "Cotizaciones" },
+  { id: "cupones", icono: "💸", texto: "Cupones" },
+  { id: "comentarios", icono: "⭐", texto: "Comentarios" },
+  { id: "visitas", icono: "🌐", texto: "Visitas IP" },
+];
+
 export default function AdminDashboard() {
   const [session, setSession] = useState(null);
   const [cargandoAuth, setCargandoAuth] = useState(true);
@@ -21,21 +31,25 @@ export default function AdminDashboard() {
 
   const [vistaActiva, setVistaActiva] = useState("productos");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+
   const cambiarVista = (nuevaVista) => {
     setVistaActiva(nuevaVista);
-    setMenuMovilAbierto(false); // Cierra el menú automáticamente en Android al tocar una opción
+    setMenuMovilAbierto(false);
   };
+
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
   const [perfil, setPerfil] = useState({
     nombre_completo: "Administrador",
     rol: "Superadmin",
-    avatar_url: ""
+    avatar_url: "",
   });
 
   useEffect(() => {
     const verificarSesion = async () => {
-      const { data: { session: sesionActual } } = await supabase.auth.getSession();
+      const {
+        data: { session: sesionActual },
+      } = await supabase.auth.getSession();
       setSession(sesionActual);
       if (sesionActual) {
         await cargarDatosGrupales(sesionActual.user.id);
@@ -45,12 +59,14 @@ export default function AdminDashboard() {
 
     verificarSesion();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) {
-        cargarDatosGrupales(session.user.id);
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        if (session) {
+          cargarDatosGrupales(session.user.id);
+        }
       }
-    });
+    );
 
     return () => {
       authListener.subscription.unsubscribe();
@@ -58,16 +74,25 @@ export default function AdminDashboard() {
   }, []);
 
   const cargarDatosGrupales = async (userId = session?.user?.id) => {
-    const { data: cats } = await supabase.from("categorias").select("*").order("nombre");
+    const { data: cats } = await supabase
+      .from("categorias")
+      .select("*")
+      .order("nombre");
     if (cats) setCategorias(cats);
 
-    const { data: prods } = await supabase.from("productos").select("*").order("id", { ascending: false });
+    const { data: prods } = await supabase
+      .from("productos")
+      .select("*")
+      .order("id", { ascending: false });
     if (prods) setProductos(prods);
 
-    const { data: { user } } = await supabase.auth.getUser();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
     const meta = user?.user_metadata || {};
 
-    let nombreGuardado = meta.nombre_mostrar || meta.full_name || "Administrador";
+    let nombreGuardado =
+      meta.nombre_mostrar || meta.full_name || "Administrador";
     let fotoGuardada = meta.avatar_url || meta.foto_url || "";
 
     if (userId) {
@@ -78,7 +103,8 @@ export default function AdminDashboard() {
         .maybeSingle();
 
       if (perf) {
-        nombreGuardado = perf.nombre_completo || perf.nombre_mostrar || nombreGuardado;
+        nombreGuardado =
+          perf.nombre_completo || perf.nombre_mostrar || nombreGuardado;
         fotoGuardada = perf.avatar_url || perf.foto_url || fotoGuardada;
       }
     }
@@ -95,7 +121,10 @@ export default function AdminDashboard() {
   const iniciarSesion = async (e) => {
     e.preventDefault();
     setErrorLogin("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
     if (error) setErrorLogin("Credenciales incorrectas o usuario no autorizado.");
   };
 
@@ -163,7 +192,7 @@ export default function AdminDashboard() {
 
             <button
               type="submit"
-              className="w-full bg-[#0f3faf] hover:bg-blue-800 text-white font-black py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200 mt-2"
+              className="w-full bg-[#0f3faf] hover:bg-blue-800 text-white font-black py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200 mt-2 cursor-pointer"
             >
               Ingresar al Panel
             </button>
@@ -175,62 +204,71 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-dvh overflow-hidden bg-gray-100 flex flex-col md:flex-row relative">
-      
-      {/* 📱 BARRA SUPERIOR COMPACTA (Solo visible en Android / Móviles) */}
-      {/* 📱 BARRA SUPERIOR COMPACTA (Botón ☰ a la izquierda, mismo lado donde abre el menú) */}
-      <header className="md:hidden bg-[#0f3faf] text-white px-4 py-3 flex items-center justify-between shadow-md sticky top-0 z-30">
-        
-        {/* Izquierda: Botón Hamburguesa + Título del Panel */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => setMenuMovilAbierto(true)}
-            className="p-2 rounded-xl bg-blue-800 hover:bg-blue-700 text-white focus:outline-none active:scale-95 transition-transform"
-            aria-label="Abrir menú"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
-          </button>
-          <span className="font-black text-sm tracking-wide uppercase text-blue-100">
-            Panel Admin
-          </span>
-        </div>
-
-        {/* Derecha: Tocar tu Foto o Nombre abre Configuración */}
-        <button
-          type="button"
-          onClick={() => cambiarVista("perfil")}
-          title="Abrir Configuración de Perfil"
-          className={`flex items-center gap-2.5 min-w-0 p-1.5 rounded-2xl transition-all active:scale-95 ${
-            vistaActiva === "perfil" ? "bg-white/20 ring-2 ring-white" : "hover:bg-blue-800/60"
-          }`}
-        >
-          <div className="text-right min-w-0">
-            <h2 className="font-black text-xs sm:text-sm truncate leading-tight">
-              {perfil?.nombre_completo || "Administrador"}
-            </h2>
-            <span className="text-[10px] text-blue-200 font-bold flex items-center justify-end gap-1">
-              ⚙️ {perfil?.rol || "Superadmin"}
+      {/* 📱 ENCABEZADO MÓVIL + BARRA RÁPIDA DE PESTAÑAS (Exclusivo Android / Móvil) */}
+      <div className="md:hidden sticky top-0 z-30 bg-[#0f3faf] text-white shadow-md">
+        <header className="px-3.5 py-2.5 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setMenuMovilAbierto(true)}
+              className="p-2 rounded-xl bg-blue-800 hover:bg-blue-700 text-white focus:outline-none active:scale-95 transition-transform"
+              aria-label="Abrir menú"
+            >
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2.5"
+                  d="M4 6h16M4 12h16M4 18h16"
+                />
+              </svg>
+            </button>
+            <span className="font-black text-xs sm:text-sm tracking-wide uppercase text-blue-100">
+              Panel Admin
             </span>
           </div>
-          <div className="relative flex-shrink-0">
-            {perfil?.avatar_url ? (
-              <img
-                src={perfil.avatar_url}
-                alt="Avatar"
-                className="w-9 h-9 rounded-full object-cover border-2 border-white bg-white"
-              />
-            ) : (
-              <div className="w-9 h-9 rounded-full border-2 border-white bg-blue-900 flex items-center justify-center text-lg">
-                👨‍💻
-              </div>
-            )}
-          </div>
-        </button>
 
-      </header>
+          <button
+            type="button"
+            onClick={() => cambiarVista("perfil")}
+            title="Abrir Configuración de Perfil"
+            className={`flex items-center gap-2 min-w-0 p-1 rounded-2xl transition-all active:scale-95 ${
+              vistaActiva === "perfil"
+                ? "bg-white/20 ring-2 ring-white"
+                : "hover:bg-blue-800/60"
+            }`}
+          >
+            <div className="text-right min-w-0">
+              <h2 className="font-black text-xs truncate leading-tight">
+                {perfil?.nombre_completo || "Administrador"}
+              </h2>
+              <span className="text-[10px] text-blue-200 font-bold flex items-center justify-end gap-1">
+                ⚙️ {perfil?.rol || "Superadmin"}
+              </span>
+            </div>
+            <div className="relative flex-shrink-0">
+              {perfil?.avatar_url ? (
+                <img
+                  src={perfil.avatar_url}
+                  alt="Avatar"
+                  className="w-8 h-8 rounded-full object-cover border-2 border-white bg-white"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-900 flex items-center justify-center text-base">
+                  👨‍💻
+                </div>
+              )}
+            </div>
+          </button>
+        </header>
+      </div>
 
-      {/* Fondo oscuro al abrir el menú en Android */}
+      {/* Fondo oscuro al abrir el menú lateral en Android */}
       {menuMovilAbierto && (
         <div
           onClick={() => setMenuMovilAbierto(false)}
@@ -238,14 +276,13 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* 💻📱 BARRA LATERAL (Oculta en Android hasta presionar ☰ | Fija en PC) */}
+      {/* 💻📱 BARRA LATERAL */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-72 h-dvh bg-[#0f3faf] text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 flex-shrink-0 ${
           menuMovilAbierto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="p-4 border-b border-blue-800 flex items-center justify-between gap-2">
-          {/* Al presionar tu foto o nombre se abre Configuración */}
           <button
             type="button"
             onClick={() => cambiarVista("perfil")}
@@ -291,8 +328,8 @@ export default function AdminDashboard() {
             </div>
           </button>
 
-          {/* Botón X para cerrar en Android */}
           <button
+            type="button"
             onClick={() => setMenuMovilAbierto(false)}
             className="md:hidden text-blue-200 hover:text-white p-2 rounded-lg bg-blue-800/60 flex-shrink-0"
           >
@@ -300,28 +337,21 @@ export default function AdminDashboard() {
           </button>
         </div>
 
-        <nav className="flex-1 p-4 space-y-2 overflow-y-auto flex flex-col">
-          <button onClick={() => cambiarVista('productos')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'productos' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">📦</span> Productos
-          </button>
-          <button onClick={() => cambiarVista('categorias')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'categorias' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">🏷️</span> Categorías
-          </button>
-          <button onClick={() => cambiarVista('ofertas')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'ofertas' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">⚡</span> Ofertas Flash
-          </button>
-          <button onClick={() => cambiarVista('cotizaciones')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'cotizaciones' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">📄</span> Cotizaciones
-          </button>
-          <button onClick={() => cambiarVista('comentarios')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'comentarios' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">⭐</span> Comentarios
-          </button>
-          <button onClick={() => cambiarVista('cupones')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'cupones' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">💸</span> Cupones
-          </button>
-          <button onClick={() => cambiarVista('visitas')} className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap ${vistaActiva === 'visitas' ? 'bg-white text-[#0f3faf] font-black shadow-md' : 'text-blue-100 hover:bg-blue-800'}`}>
-            <span className="text-lg">🌐</span> Visitas IP
-          </button>
+        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto flex flex-col">
+          {PESTANAS_ADMIN.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => cambiarVista(tab.id)}
+              className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap cursor-pointer ${
+                vistaActiva === tab.id
+                  ? "bg-white text-[#0f3faf] font-black shadow-md"
+                  : "text-blue-100 hover:bg-blue-800"
+              }`}
+            >
+              <span className="text-lg">{tab.icono}</span> {tab.texto}
+            </button>
+          ))}
         </nav>
 
         <div className="p-4 border-t border-blue-800 space-y-2">
@@ -334,24 +364,45 @@ export default function AdminDashboard() {
             🌐 Ver Tienda Pública
           </a>
           <button
+            type="button"
             onClick={cerrarSesion}
-            className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors"
+            className="flex items-center justify-center gap-2 w-full bg-red-600 hover:bg-red-700 text-white font-bold py-2.5 rounded-xl text-xs transition-colors cursor-pointer"
           >
             🚪 Cerrar Sesión
           </button>
         </div>
       </aside>
 
-      {/* Área Principal de Módulos (Solo esta zona se alarga y hace scroll) */}
-      <main className="flex-1 h-full overflow-y-auto p-4 md:p-8">
-        {vistaActiva === 'productos' && <ModuloProductos productos={productos} categorias={categorias} recargarDatos={cargarDatosGrupales} />}
-        {vistaActiva === 'categorias' && <ModuloCategorias categorias={categorias} productos={productos} recargarDatos={cargarDatosGrupales} />}
-        {vistaActiva === 'ofertas' && <ModuloOfertas productos={productos} />}
-        {vistaActiva === 'cotizaciones' && <ModuloCotizaciones />}
-        {vistaActiva === 'comentarios' && <ModuloComentarios productos={productos} />}
+      {/* Área Principal de Módulos con margen aprovechado en móvil */}
+      <main className="flex-1 h-full overflow-y-auto p-2.5 sm:p-4 md:p-8">
+        {vistaActiva === "productos" && (
+          <ModuloProductos
+            productos={productos}
+            categorias={categorias}
+            recargarDatos={cargarDatosGrupales}
+          />
+        )}
+        {vistaActiva === "categorias" && (
+          <ModuloCategorias
+            categorias={categorias}
+            productos={productos}
+            recargarDatos={cargarDatosGrupales}
+          />
+        )}
+        {vistaActiva === "ofertas" && <ModuloOfertas productos={productos} />}
+        {vistaActiva === "cotizaciones" && <ModuloCotizaciones />}
+        {vistaActiva === "comentarios" && (
+          <ModuloComentarios productos={productos} />
+        )}
         {vistaActiva === "cupones" && <ModuloCupones />}
         {vistaActiva === "visitas" && <ModuloVisitas />}
-        {vistaActiva === 'perfil' && <ModuloPerfil session={session} perfil={perfil} actualizarPerfilLocal={setPerfil} />}
+        {vistaActiva === "perfil" && (
+          <ModuloPerfil
+            session={session}
+            perfil={perfil}
+            actualizarPerfilLocal={setPerfil}
+          />
+        )}
       </main>
     </div>
   );

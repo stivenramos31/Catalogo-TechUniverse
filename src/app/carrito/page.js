@@ -23,10 +23,17 @@ const DEPARTAMENTOS_SV = {
 };
 
 export default function CarritoPage() {
-  const { cart, eliminarDelCarrito, agregarAlCarrito, vaciarCarrito, total, cantidadTotal } = useCart();
+  const {
+    cart,
+    obtenerInfoPrecioItem,
+    eliminarDelCarrito,
+    agregarAlCarrito,
+    vaciarCarrito,
+    total,
+    cantidadTotal,
+  } = useCart();
   const [procesando, setProcesando] = useState(false);
 
-  // Por defecto en FALSE: no pide información personal a menos que el cliente elija "Sí"
   const [deseaIngresarDatos, setDeseaIngresarDatos] = useState(false);
 
   const [reciboActivo, setReciboActivo] = useState(null);
@@ -49,7 +56,6 @@ export default function CarritoPage() {
     observaciones: "",
   });
 
-  // Formateador automático de 8 dígitos con guion en el centro (0000-0000)
   const formatearOchoDigitos = (valor = "") => {
     let nums = String(valor).replace(/\D/g, "");
     if (nums.startsWith("503") && nums.length > 8) nums = nums.slice(3);
@@ -68,7 +74,6 @@ export default function CarritoPage() {
       console.error(e);
     }
 
-    // Obtener número de WhatsApp configurado en el panel Admin
     supabase
       .from("configuracion_tienda")
       .select("whatsapp_ventas")
@@ -80,7 +85,6 @@ export default function CarritoPage() {
         }
       });
 
-    // Detectar IP pública, ciudad y dispositivo
     const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
     const tipoDisp = /Android/i.test(ua)
       ? "Android"
@@ -148,6 +152,15 @@ export default function CarritoPage() {
     }
   };
 
+  // Ahorro total por Ofertas Flash activas
+  const ahorroOfertasFlash = (cart || []).reduce((acc, item) => {
+    const info = obtenerInfoPrecioItem ? obtenerInfoPrecioItem(item) : null;
+    if (info && info.tieneOfertaAplicada) {
+      return acc + (info.precioNormal - info.precioUnitario) * item.cantidad;
+    }
+    return acc;
+  }, 0);
+
   const descuentoCalculado = cuponAplicado ? parseFloat(cuponAplicado.descuento) : 0;
   const totalFinal = Math.max(total - descuentoCalculado, 0);
 
@@ -201,17 +214,28 @@ export default function CarritoPage() {
         conDatos: deseaIngresarDatos,
         cliente: deseaIngresarDatos
           ? { ...cliente, telefono: telefonoFormateado }
-          : { nombre: "Cliente Express (Sin datos)", telefono: "Vía WhatsApp", departamento: "", distrito: "", direccion: "" },
-        items: cart.map((i) => ({
-          id: i.id,
-          titulo: i.titulo,
-          cantidad: i.cantidad,
-          precio_unitario: parseFloat(i.precio_actual),
-        })),
-        subtotal: parseFloat(data.subtotal),
-        descuento: parseFloat(data.descuento),
+          : {
+              nombre: "Cliente Express (Sin datos)",
+              telefono: "Vía WhatsApp",
+              departamento: "",
+              distrito: "",
+              direccion: "",
+            },
+        items: cart.map((i) => {
+          const info = obtenerInfoPrecioItem
+            ? obtenerInfoPrecioItem(i)
+            : { precioUnitario: parseFloat(i.precio_actual) };
+          return {
+            id: i.id,
+            titulo: i.titulo,
+            cantidad: i.cantidad,
+            precio_unitario: info.precioUnitario,
+          };
+        }),
+        subtotal: total,
+        descuento: descuentoCalculado,
         codigo_cupon: cuponAplicado ? cuponAplicado.codigo : null,
-        total_final: parseFloat(data.total_final),
+        total_final: totalFinal,
       };
 
       const nuevoHistorial = [nuevoRecibo, ...historialCliente].slice(0, 20);
@@ -237,7 +261,10 @@ export default function CarritoPage() {
 
         const textoWhatsApp = `¡Hola *TECH UNIVERSE*! 👋 Te envío mi *Cotización Oficial #${nuevoRecibo.numero_folio}*:\n\n${lineasProd}${bloqueDescuento}\n💰 *TOTAL A PAGAR: $${nuevoRecibo.total_final.toFixed(2)}*${bloqueEntrega}\n\n🔗 *Ver comprobante oficial aquí:*\n${enlacePermanente}`;
 
-        window.open(`https://wa.me/${whatsappTienda}?text=${encodeURIComponent(textoWhatsApp)}`, "_blank");
+        window.open(
+          `https://wa.me/${whatsappTienda}?text=${encodeURIComponent(textoWhatsApp)}`,
+          "_blank"
+        );
       }
 
       vaciarCarrito();
@@ -301,17 +328,29 @@ export default function CarritoPage() {
 
             {reciboActivo.conDatos && (
               <div className="bg-gray-50 p-3.5 rounded-2xl border text-xs space-y-1">
-                <p><strong>Cliente:</strong> {reciboActivo.cliente.nombre}</p>
-                <p><strong>WhatsApp:</strong> {reciboActivo.cliente.telefono}</p>
-                <p><strong>Ubicación:</strong> {reciboActivo.cliente.departamento}, {reciboActivo.cliente.distrito} — {reciboActivo.cliente.direccion}</p>
+                <p>
+                  <strong>Cliente:</strong> {reciboActivo.cliente.nombre}
+                </p>
+                <p>
+                  <strong>WhatsApp:</strong> {reciboActivo.cliente.telefono}
+                </p>
+                <p>
+                  <strong>Ubicación:</strong> {reciboActivo.cliente.departamento},{" "}
+                  {reciboActivo.cliente.distrito} — {reciboActivo.cliente.direccion}
+                </p>
               </div>
             )}
 
             <div className="divide-y border-t border-b py-2">
               {reciboActivo.items.map((item, idx) => (
-                <div key={idx} className="py-2 flex justify-between items-center text-xs sm:text-sm gap-2">
+                <div
+                  key={idx}
+                  className="py-2 flex justify-between items-center text-xs sm:text-sm gap-2"
+                >
                   <div className="flex-1 min-w-0">
-                    <span className="font-black text-[#0f3faf] mr-1.5">{item.cantidad}x</span>
+                    <span className="font-black text-[#0f3faf] mr-1.5">
+                      {item.cantidad}x
+                    </span>
                     <span className="font-bold text-gray-800">{item.titulo}</span>
                   </div>
                   <span className="font-black text-gray-900">
@@ -373,12 +412,19 @@ export default function CarritoPage() {
             )}
           </div>
 
-          {(!cart || cart.length === 0) ? (
+          {!cart || cart.length === 0 ? (
             <div className="bg-white rounded-2xl p-10 text-center shadow-sm border border-gray-100">
               <span className="text-5xl block mb-3">🛒</span>
-              <h2 className="text-xl font-black text-gray-800 mb-2">Tu carrito está vacío</h2>
-              <p className="text-gray-500 text-sm mb-6">Explora nuestro catálogo y arma tu cotización en segundos.</p>
-              <Link href="/catalogo" className="bg-[#0f3faf] text-white font-bold py-3 px-6 rounded-xl hover:bg-blue-800 transition-colors inline-block text-sm">
+              <h2 className="text-xl font-black text-gray-800 mb-2">
+                Tu carrito está vacío
+              </h2>
+              <p className="text-gray-500 text-sm mb-6">
+                Explora nuestro catálogo y arma tu cotización en segundos.
+              </p>
+              <Link
+                href="/catalogo"
+                className="bg-[#0f3faf] text-white font-bold py-3 px-6 rounded-xl hover:bg-blue-800 transition-colors inline-block text-sm"
+              >
                 Ir al Catálogo
               </Link>
             </div>
@@ -387,29 +433,100 @@ export default function CarritoPage() {
               {/* Lista Compacta Tipo Ticket */}
               <div className="lg:col-span-2">
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden divide-y divide-gray-100">
-                  {cart.map((item) => (
-                    <div key={item.id} className="p-2.5 sm:p-4 flex items-center gap-3 hover:bg-gray-50/50 transition-colors">
-                      <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg overflow-hidden border p-1 flex-shrink-0 flex items-center justify-center">
-                        <img src={item.imagenes?.[0] || "/favicon.ico"} alt={item.titulo} className="max-w-full max-h-full object-contain" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-gray-900 text-xs sm:text-sm line-clamp-2 leading-snug">{item.titulo}</h3>
-                        <p className="text-[#0f3faf] font-black text-xs sm:text-sm mt-0.5">
-                          ${parseFloat(item.precio_actual).toFixed(2)} <span className="text-[10px] text-gray-400 font-medium">c/u</span>
-                        </p>
-                      </div>
-                      <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-4 flex-shrink-0">
-                        <p className="font-black text-gray-900 text-sm sm:text-base sm:order-2 sm:min-w-[70px] text-right">
-                          ${(item.precio_actual * item.cantidad).toFixed(2)}
-                        </p>
-                        <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-gray-50 h-7 sm:h-9 sm:order-1">
-                          <button onClick={() => eliminarDelCarrito(item.id)} className="w-7 sm:w-8 h-full flex items-center justify-center text-gray-700 hover:bg-gray-200 font-black text-sm">−</button>
-                          <span className="w-6 sm:w-8 text-center font-black text-xs sm:text-sm text-gray-900">{item.cantidad}</span>
-                          <button onClick={() => agregarAlCarrito(item)} className="w-7 sm:w-8 h-full flex items-center justify-center text-gray-700 hover:bg-gray-200 font-black text-sm">+</button>
+                  {cart.map((item) => {
+                    const info = obtenerInfoPrecioItem
+                      ? obtenerInfoPrecioItem(item)
+                      : {
+                          precioUnitario: parseFloat(item.precio_actual),
+                          precioNormal: parseFloat(item.precio_actual),
+                          tieneOfertaAplicada: false,
+                          ofertaDisponible: null,
+                        };
+
+                    return (
+                      <div
+                        key={item.id}
+                        className="p-2.5 sm:p-4 flex items-center gap-3 hover:bg-gray-50/50 transition-colors"
+                      >
+                        <div className="w-14 h-14 sm:w-20 sm:h-20 bg-white rounded-lg overflow-hidden border p-1 flex-shrink-0 flex items-center justify-center">
+                          <img
+                            src={item.imagenes?.[0] || "/favicon.ico"}
+                            alt={item.titulo}
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-bold text-gray-900 text-xs sm:text-sm line-clamp-2 leading-snug">
+                            {item.titulo}
+                          </h3>
+
+                          {info.tieneOfertaAplicada ? (
+                            <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                              <span className="text-green-600 font-black text-xs sm:text-sm">
+                                ${info.precioUnitario.toFixed(2)}{" "}
+                                <span className="text-[10px] font-medium">c/u</span>
+                              </span>
+                              <span className="text-gray-400 line-through text-[11px] font-bold">
+                                ${info.precioNormal.toFixed(2)}
+                              </span>
+                              <span className="bg-red-100 text-[#e11d48] text-[10px] font-black px-2 py-0.5 rounded-full">
+                                ⚡ Oferta Aplicada
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="mt-0.5">
+                              <p className="text-[#0f3faf] font-black text-xs sm:text-sm">
+                                ${info.precioUnitario.toFixed(2)}{" "}
+                                <span className="text-[10px] text-gray-400 font-medium">
+                                  c/u
+                                </span>
+                              </p>
+                              {info.ofertaDisponible && (
+                                <p className="text-[11px] font-black text-amber-600 mt-0.5">
+                                  🔥 ¡Lleva {info.cantidadMinima} o más a $
+                                  {info.precioPromo.toFixed(2)} c/u!
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-1.5 sm:gap-4 flex-shrink-0">
+                          <div className="sm:order-2 sm:min-w-[80px] text-right">
+                            <p className="font-black text-gray-900 text-sm sm:text-base">
+                              ${(info.precioUnitario * item.cantidad).toFixed(2)}
+                            </p>
+                            {info.tieneOfertaAplicada && (
+                              <p className="text-[11px] text-gray-400 line-through font-bold">
+                                ${(info.precioNormal * item.cantidad).toFixed(2)}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-gray-50 h-7 sm:h-9 sm:order-1">
+                            <button
+                              type="button"
+                              onClick={() => eliminarDelCarrito(item.id)}
+                              className="w-7 sm:w-8 h-full flex items-center justify-center text-gray-700 hover:bg-gray-200 font-black text-sm cursor-pointer"
+                            >
+                              −
+                            </button>
+                            <span className="w-6 sm:w-8 text-center font-black text-xs sm:text-sm text-gray-900">
+                              {item.cantidad}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => agregarAlCarrito(item)}
+                              className="w-7 sm:w-8 h-full flex items-center justify-center text-gray-700 hover:bg-gray-200 font-black text-sm cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
 
                   {/* Módulo de Cupón */}
                   <div className="p-3 sm:p-4 bg-blue-50/40">
@@ -434,16 +551,30 @@ export default function CarritoPage() {
                     ) : (
                       <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
                         <div className="flex items-center gap-2">
-                          <span className="text-green-600 font-black text-xs sm:text-sm">🏷️ Cupón {cuponAplicado.codigo}</span>
+                          <span className="text-green-600 font-black text-xs sm:text-sm">
+                            🏷️ Cupón {cuponAplicado.codigo}
+                          </span>
                           <span className="text-[11px] bg-green-600 text-white font-bold px-2 py-0.5 rounded-full">
-                            {cuponAplicado.tipo === "porcentaje" ? `-${cuponAplicado.valor}%` : `-$${cuponAplicado.valor}`}
+                            {cuponAplicado.tipo === "porcentaje"
+                              ? `-${cuponAplicado.valor}%`
+                              : `-$${cuponAplicado.valor}`}
                           </span>
                         </div>
-                        <button type="button" onClick={() => setCuponAplicado(null)} className="text-xs font-black text-red-500 hover:text-red-700 px-2">✕ Quitar</button>
+                        <button
+                          type="button"
+                          onClick={() => setCuponAplicado(null)}
+                          className="text-xs font-black text-red-500 hover:text-red-700 px-2"
+                        >
+                          ✕ Quitar
+                        </button>
                       </div>
                     )}
                     {mensajeCupon.texto && (
-                      <p className={`text-[11px] font-bold mt-1.5 ${mensajeCupon.tipo === "error" ? "text-red-600" : "text-green-700"}`}>
+                      <p
+                        className={`text-[11px] font-bold mt-1.5 ${
+                          mensajeCupon.tipo === "error" ? "text-red-600" : "text-green-700"
+                        }`}
+                      >
                         {mensajeCupon.texto}
                       </p>
                     )}
@@ -451,6 +582,12 @@ export default function CarritoPage() {
 
                   {/* Totales */}
                   <div className="bg-gray-50 px-4 py-3 space-y-1.5 border-t-2 border-gray-200">
+                    {ahorroOfertasFlash > 0 && (
+                      <div className="flex justify-between items-center text-xs text-green-700 font-black">
+                        <span>⚡ Ahorro por Oferta Flash:</span>
+                        <span>-${ahorroOfertasFlash.toFixed(2)}</span>
+                      </div>
+                    )}
                     {cuponAplicado && (
                       <>
                         <div className="flex justify-between items-center text-xs text-gray-500 font-bold">
@@ -467,13 +604,15 @@ export default function CarritoPage() {
                       <span className="text-xs sm:text-sm font-black text-gray-800 uppercase tracking-wide">
                         Total Estimado ({cantidadTotal} prod.):
                       </span>
-                      <span className="text-xl sm:text-2xl font-black text-green-600">${totalFinal.toFixed(2)}</span>
+                      <span className="text-xl sm:text-2xl font-black text-green-600">
+                        ${totalFinal.toFixed(2)}
+                      </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Panel de Envío de Cotización (Por defecto SIN pedir datos) */}
+              {/* Panel de Envío de Cotización */}
               <div className="bg-white p-5 sm:p-6 rounded-2xl shadow-md border border-gray-100 h-fit sticky top-24 space-y-4">
                 <div>
                   <h2 className="font-black text-lg text-gray-900">Finalizar Cotización</h2>
@@ -482,7 +621,6 @@ export default function CarritoPage() {
                   </p>
                 </div>
 
-                {/* Pregunta amigable de privacidad */}
                 <div className="bg-blue-50/70 p-3.5 rounded-2xl border border-blue-200 space-y-2.5">
                   <p className="text-xs font-black text-gray-800">
                     🤔 ¿Deseas ingresar tu información de entrega ahora?
@@ -520,7 +658,6 @@ export default function CarritoPage() {
                   )}
                 </div>
 
-                {/* Formulario que se abre SOLO si el cliente presiona "Sí, agregar datos" */}
                 {deseaIngresarDatos && (
                   <div className="space-y-3 pt-1 animate-fade-in">
                     <div>
@@ -550,7 +687,10 @@ export default function CarritoPage() {
                           placeholder="7000-0000"
                           value={formatearOchoDigitos(cliente.telefono)}
                           onChange={(e) =>
-                            setCliente({ ...cliente, telefono: formatearOchoDigitos(e.target.value) })
+                            setCliente({
+                              ...cliente,
+                              telefono: formatearOchoDigitos(e.target.value),
+                            })
                           }
                           className="w-full px-3 py-2.5 font-black text-sm outline-none bg-transparent tracking-wider"
                         />
@@ -588,7 +728,9 @@ export default function CarritoPage() {
                         </label>
                         <select
                           value={cliente.distrito}
-                          onChange={(e) => setCliente({ ...cliente, distrito: e.target.value })}
+                          onChange={(e) =>
+                            setCliente({ ...cliente, distrito: e.target.value })
+                          }
                           className="w-full border-2 border-gray-200 rounded-xl px-3 py-2.5 bg-gray-50 focus:bg-white focus:border-[#0f3faf] outline-none font-bold text-xs"
                         >
                           {(DEPARTAMENTOS_SV[cliente.departamento] || []).map((dist) => (
@@ -608,14 +750,15 @@ export default function CarritoPage() {
                         rows="2"
                         placeholder="Ej: Col. Ciudad Pacífica, Polígono B #14, frente a parque..."
                         value={cliente.direccion}
-                        onChange={(e) => setCliente({ ...cliente, direccion: e.target.value })}
+                        onChange={(e) =>
+                          setCliente({ ...cliente, direccion: e.target.value })
+                        }
                         className="w-full border-2 border-gray-200 rounded-xl px-3.5 py-2 bg-gray-50 focus:bg-white focus:border-[#0f3faf] outline-none font-medium text-xs sm:text-sm"
                       />
                     </div>
                   </div>
                 )}
 
-                {/* Botones para generar la Cotización #0001 */}
                 <div className="space-y-2.5 pt-2">
                   <button
                     type="button"
@@ -624,7 +767,9 @@ export default function CarritoPage() {
                     className="w-full bg-[#25D366] hover:bg-green-600 text-white font-black py-3.5 px-4 rounded-xl transition-all text-sm sm:text-base shadow-lg shadow-green-100 flex items-center justify-center gap-2 active:scale-95"
                   >
                     <span>📲</span>
-                    {procesando ? "Generando Cotización..." : "Enviar Cotización a WhatsApp"}
+                    {procesando
+                      ? "Generando Cotización..."
+                      : "Enviar Cotización a WhatsApp"}
                   </button>
 
                   <button
@@ -649,7 +794,10 @@ export default function CarritoPage() {
             </h2>
             <div className="divide-y">
               {historialCliente.map((cot, index) => (
-                <div key={index} className="py-3 flex flex-wrap justify-between items-center gap-3">
+                <div
+                  key={index}
+                  className="py-3 flex flex-wrap justify-between items-center gap-3"
+                >
                   <div>
                     <span className="bg-blue-50 text-[#0f3faf] font-black text-xs px-2.5 py-1 rounded-lg border border-blue-200 mr-2">
                       Cotización #{cot.numero_folio || String(cot.id).slice(0, 4)}
@@ -657,7 +805,9 @@ export default function CarritoPage() {
                     <span className="text-xs font-bold text-gray-700">{cot.fecha}</span>
                     <p className="text-xs text-gray-500 mt-1">
                       {cot.items.length} prod. • Total:{" "}
-                      <strong className="text-green-600">${cot.total_final.toFixed(2)}</strong>
+                      <strong className="text-green-600">
+                        ${cot.total_final.toFixed(2)}
+                      </strong>
                     </p>
                   </div>
                   <div className="flex gap-2">

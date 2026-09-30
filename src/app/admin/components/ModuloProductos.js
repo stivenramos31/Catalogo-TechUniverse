@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../../../lib/supabase";
 
+const CLAVE_BORRADOR_PRODUCTO = "tech_universe_borrador_nuevo_producto";
+
 const convertirAWebP = (file) => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -88,6 +90,59 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
     };
     sincronizarCategoriasConRamas();
   }, [categorias, mostrarModal]);
+
+  // 🔒 1. BLOQUEAR PULL-TO-REFRESH EN ANDROID Y RECARGA ACCIDENTAL DE PÁGINA
+  useEffect(() => {
+    if (!mostrarModal) return;
+
+    const htmlEl = document.documentElement;
+    const bodyEl = document.body;
+
+    const prevHtmlOverscroll = htmlEl.style.overscrollBehaviorY;
+    const prevBodyOverscroll = bodyEl.style.overscrollBehaviorY;
+    const prevBodyOverflow = bodyEl.style.overflow;
+
+    // Desactiva el gesto de deslizar hacia abajo para recargar en Android Chrome
+    htmlEl.style.overscrollBehaviorY = "none";
+    bodyEl.style.overscrollBehaviorY = "none";
+    bodyEl.style.overflow = "hidden";
+
+    const prevenirRecarga = (e) => {
+      if (formModificado || procesando || imagenesNuevas.length > 0) {
+        e.preventDefault();
+        e.returnValue = "Tienes cambios sin guardar en el producto.";
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener("beforeunload", prevenirRecarga);
+
+    return () => {
+      htmlEl.style.overscrollBehaviorY = prevHtmlOverscroll;
+      bodyEl.style.overscrollBehaviorY = prevBodyOverscroll;
+      bodyEl.style.overflow = prevBodyOverflow;
+      window.removeEventListener("beforeunload", prevenirRecarga);
+    };
+  }, [mostrarModal, formModificado, procesando, imagenesNuevas.length]);
+
+  // 💾 2. GUARDAR BORRADOR AUTOMÁTICO MIENTRAS SE CREA UN PRODUCTO NUEVO
+  useEffect(() => {
+    if (mostrarModal && !productoEditando && formModificado) {
+      try {
+        localStorage.setItem(CLAVE_BORRADOR_PRODUCTO, JSON.stringify(nuevoProducto));
+      } catch (e) {
+        console.error("No se pudo guardar el borrador:", e);
+      }
+    }
+  }, [nuevoProducto, mostrarModal, productoEditando, formModificado]);
+
+  const limpiarBorradorGuardado = () => {
+    try {
+      localStorage.removeItem(CLAVE_BORRADOR_PRODUCTO);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const categoriasPrincipales = categoriasArbol
     .filter((c) => !c.parent_id)
@@ -180,16 +235,37 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         activo: prod.activo,
       });
       setImagenesExistentes(prod.imagenes || []);
+      setFormModificado(false);
     } else {
       setProductoEditando(null);
-      setNuevoProducto({ ...estadoInicial, categoria_id: categoriasJerarquicas[0]?.id || "" });
+      let borradorRecuperado = null;
+      try {
+        const guardado = localStorage.getItem(CLAVE_BORRADOR_PRODUCTO);
+        if (guardado) borradorRecuperado = JSON.parse(guardado);
+      } catch (e) {
+        console.error(e);
+      }
+
+      if (borradorRecuperado && (borradorRecuperado.titulo || borradorRecuperado.descripcion || borradorRecuperado.precio_actual)) {
+        setNuevoProducto({
+          ...estadoInicial,
+          ...borradorRecuperado,
+          categoria_id: borradorRecuperado.categoria_id || categoriasJerarquicas[0]?.id || "",
+        });
+        setFormModificado(true);
+      } else {
+        setNuevoProducto({
+          ...estadoInicial,
+          categoria_id: categoriasJerarquicas[0]?.id || "",
+        });
+        setFormModificado(false);
+      }
       setImagenesExistentes([]);
     }
     setImagenesNuevas([]);
     setImagenesParaBorrar([]);
     setProgresoSubida(0);
     setEstadoSubidaTexto("");
-    setFormModificado(false);
     setMostrarModal(true);
     window.history.pushState({ modalAbierto: true }, "");
   };
@@ -197,7 +273,8 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
   const intentarCerrarModal = () => {
     if (procesando) return;
     if (formModificado) {
-      if (window.confirm("¿Estás seguro de salir? Perderás toda la información no guardada.")) {
+      if (window.confirm("¿Estás seguro de salir? Se descartará el formulario actual.")) {
+        if (!productoEditando) limpiarBorradorGuardado();
         limpiarPreviews(imagenesNuevas);
         setImagenesNuevas([]);
         setMostrarModal(false);
@@ -373,6 +450,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
       await new Promise((res) => setTimeout(res, 400));
 
+      limpiarBorradorGuardado();
       limpiarPreviews(imagenesNuevas);
       setImagenesNuevas([]);
       setImagenesParaBorrar([]);
@@ -420,7 +498,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
   return (
     <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border animate-fade-in">
-      <div className="flex flex-wrap justify-between items-center gap-4 mb-5">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3 mb-5">
         <div>
           <h2 className="font-black text-xl sm:text-2xl text-gray-800">Inventario de Productos</h2>
           <p className="text-xs text-gray-500 font-medium mt-0.5">
@@ -430,7 +508,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         <button
           type="button"
           onClick={() => abrirModal()}
-          className="bg-[#16a34a] hover:bg-green-700 text-white font-bold px-5 py-2.5 sm:px-6 sm:py-3 rounded-xl transition-colors shadow-sm text-sm sm:text-base whitespace-nowrap cursor-pointer"
+          className="w-full sm:w-auto bg-[#16a34a] hover:bg-green-700 text-white font-black px-5 py-3 rounded-xl transition-colors shadow-sm text-sm sm:text-base whitespace-nowrap cursor-pointer text-center"
         >
           + Nuevo Producto
         </button>
@@ -472,17 +550,93 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         </select>
       </div>
 
-      {/* 📱 TABLA COMPACTA EN ANDROID Y COMPLETA EN PC (Sin scroll horizontal forzado) */}
-      <div className="overflow-x-auto border rounded-xl shadow-xs">
-        <table className="w-full text-left text-xs sm:text-sm">
+      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL */}
+      <div className="md:hidden space-y-3">
+        {productosFiltradosAdmin.length === 0 && (
+          <p className="text-center p-8 text-gray-400 font-bold text-sm border rounded-xl">
+            No se encontraron productos con ese criterio.
+          </p>
+        )}
+
+        {productosFiltradosAdmin.map((prod) => {
+          const rutaCat = obtenerRutaCategoria(prod.categoria_id);
+          const esSub = rutaCat.includes("›");
+
+          return (
+            <div
+              key={prod.id}
+              className="bg-white border border-gray-200 rounded-2xl p-3.5 shadow-2xs space-y-3"
+            >
+              <div className="flex items-start gap-3">
+                <img
+                  src={prod.imagenes?.[0] || "/favicon.ico"}
+                  alt={prod.titulo}
+                  className="w-20 h-20 object-contain bg-white p-1.5 rounded-xl border border-gray-200 shadow-2xs flex-shrink-0"
+                />
+
+                <div className="flex-1 min-w-0">
+                  <span
+                    className={`inline-block text-[10px] font-black px-2 py-0.5 rounded-md border mb-1 truncate max-w-full ${
+                      esSub
+                        ? "bg-purple-50 text-purple-800 border-purple-200"
+                        : "bg-blue-50 text-[#0f3faf] border-blue-200"
+                    }`}
+                  >
+                    {rutaCat}
+                  </span>
+
+                  <h3 className="font-black text-gray-900 text-sm leading-snug line-clamp-2">
+                    {prod.titulo}
+                  </h3>
+
+                  <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                    <span className="text-green-600 font-black text-base">
+                      ${parseFloat(prod.precio_actual || 0).toFixed(2)}
+                    </span>
+                    <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-bold text-[10px] border">
+                      Stock: {prod.stock_disponible}
+                    </span>
+                    {prod.activo ? (
+                      <span className="text-green-700 font-bold text-[10px]">● Visible</span>
+                    ) : (
+                      <span className="text-gray-400 font-bold text-[10px]">○ Oculto</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2.5 border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={() => abrirModal(prod)}
+                  className="bg-blue-100 text-blue-700 py-2 rounded-xl text-xs font-black hover:bg-blue-200 transition-colors cursor-pointer text-center"
+                >
+                  ✏️️ Editar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => eliminarProducto(prod.id, prod.titulo, prod.imagenes)}
+                  className="bg-red-50 text-red-600 py-2 rounded-xl text-xs font-black hover:bg-red-100 transition-colors cursor-pointer text-center"
+                >
+                  🗑️ Borrar
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 💻 VISTA EN TABLA PARA PC / MONITORES */}
+      <div className="hidden md:block overflow-x-auto border rounded-xl shadow-xs">
+        <table className="w-full text-left text-sm">
           <thead className="bg-gray-100 border-b-2 border-gray-200">
             <tr>
-              <th className="p-2.5 sm:p-4 font-black text-gray-600 w-24 sm:w-20">Foto</th>
-              <th className="p-2.5 sm:p-4 font-black text-gray-600">Producto / Detalles</th>
-              <th className="hidden sm:table-cell p-4 font-black text-gray-600">Stock</th>
-              <th className="hidden md:table-cell p-4 font-black text-gray-600">Categoría / Rama</th>
-              <th className="hidden sm:table-cell p-4 font-black text-gray-600">Estado</th>
-              <th className="p-2.5 sm:p-4 font-black text-gray-600 text-right">Acciones</th>
+              <th className="p-4 font-black text-gray-600 w-20">Foto</th>
+              <th className="p-4 font-black text-gray-600">Producto / Detalles</th>
+              <th className="p-4 font-black text-gray-600">Stock</th>
+              <th className="p-4 font-black text-gray-600">Categoría / Rama</th>
+              <th className="p-4 font-black text-gray-600">Estado</th>
+              <th className="p-4 font-black text-gray-600 text-right">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -499,40 +653,30 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
               return (
                 <tr key={prod.id} className="border-b hover:bg-blue-50/50 transition-colors">
-                  <td className="p-2.5 sm:p-4">
+                  <td className="p-4">
                     <img
                       src={prod.imagenes?.[0] || "/favicon.ico"}
                       alt={prod.titulo}
-                      className="w-20 h-20 sm:w-16 sm:h-16 object-contain bg-white p-1.5 rounded-xl border shadow-xs"
+                      className="w-16 h-16 object-contain bg-white p-1.5 rounded-xl border shadow-xs"
                     />
                   </td>
 
-                  <td className="p-2.5 sm:p-4">
-                    <p className="font-black text-gray-900 text-sm sm:text-base line-clamp-2">
+                  <td className="p-4">
+                    <p className="font-black text-gray-900 text-base line-clamp-2">
                       {prod.titulo}
                     </p>
-                    <p className="text-green-600 font-black text-base sm:text-lg mt-0.5">
+                    <p className="text-green-600 font-black text-lg mt-0.5">
                       ${parseFloat(prod.precio_actual || 0).toFixed(2)}
                     </p>
-                    <div className="sm:hidden flex flex-wrap items-center gap-1.5 mt-1">
-                      <span className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-bold text-[10px] border">
-                        Stock: {prod.stock_disponible}
-                      </span>
-                      {prod.activo ? (
-                        <span className="text-green-700 font-bold text-[10px]">● Visible</span>
-                      ) : (
-                        <span className="text-gray-400 font-bold text-[10px]">○ Oculto</span>
-                      )}
-                    </div>
                   </td>
 
-                  <td className="hidden sm:table-cell p-4">
+                  <td className="p-4">
                     <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-black border">
                       {prod.stock_disponible}
                     </span>
                   </td>
 
-                  <td className="hidden md:table-cell p-4">
+                  <td className="p-4">
                     <span
                       className={`inline-block text-xs font-black px-3 py-1 rounded-lg border ${
                         esSub
@@ -544,7 +688,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                     </span>
                   </td>
 
-                  <td className="hidden sm:table-cell p-4">
+                  <td className="p-4">
                     {prod.activo ? (
                       <span className="text-green-700 flex items-center gap-1.5 font-bold">
                         <span className="w-2 h-2 bg-green-500 rounded-full"></span> Visible
@@ -556,8 +700,8 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
                     )}
                   </td>
 
-                  <td className="p-2.5 sm:p-4 text-right">
-                    <div className="flex flex-col sm:flex-row items-end sm:items-center justify-end gap-1.5 sm:gap-2">
+                  <td className="p-4 text-right">
+                    <div className="flex items-center justify-end gap-2">
                       <button
                         type="button"
                         onClick={() => abrirModal(prod)}
@@ -581,9 +725,10 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
         </table>
       </div>
 
+      {/* 🔒 MODAL CON OVERSCROLL-CONTAIN PARA EVITAR RECARGA AL DESLIZAR EN ANDROID */}
       {mostrarModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white w-full max-w-4xl max-h-[92vh] overflow-y-auto rounded-3xl shadow-2xl flex flex-col relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in overscroll-none">
+          <div className="bg-white w-full max-w-4xl max-h-[92vh] overflow-y-auto overscroll-contain rounded-3xl shadow-2xl flex flex-col relative">
             
             {procesando && (
               <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
@@ -626,10 +771,15 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
               </div>
             )}
 
-            <div className="sticky top-0 bg-white border-b px-6 sm:px-8 py-4 sm:py-5 flex justify-between items-center z-30 rounded-t-3xl">
-              <h2 className="font-black text-xl sm:text-2xl text-gray-800">
-                {productoEditando ? "✏️ Editar Producto" : "➕ Nuevo Producto"}
-              </h2>
+            <div className="sticky top-0 bg-white border-b px-5 sm:px-8 py-4 flex justify-between items-center z-30 rounded-t-3xl">
+              <div>
+                <h2 className="font-black text-lg sm:text-2xl text-gray-800">
+                  {productoEditando ? "✏️ Editar Producto" : "➕ Nuevo Producto"}
+                </h2>
+                <p className="text-[11px] text-green-700 font-bold">
+                  🔒 Protección activa contra recarga accidental
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={intentarCerrarModal}
@@ -640,7 +790,7 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
               </button>
             </div>
 
-            <form onSubmit={guardarProducto} className="p-5 sm:p-8 space-y-6">
+            <form onSubmit={guardarProducto} className="p-4 sm:p-8 space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="md:col-span-2">
                   <label className="block text-sm font-bold text-gray-700 mb-1.5">
@@ -750,11 +900,11 @@ export default function ModuloProductos({ productos, categorias, recargarDatos }
 
                 <div>
                   <label className="block text-sm font-bold text-gray-700 mb-1.5">
-                    Video YouTube (Opcional)
+                    Video YouTube o Google Drive (Opcional)
                   </label>
                   <input
                     type="url"
-                    placeholder="https://youtube.com/..."
+                    placeholder="https://youtube.com/... o Google Drive"
                     value={nuevoProducto.video_youtube}
                     onChange={(e) => manejarCambioInput("video_youtube", e.target.value)}
                     className="w-full border-2 rounded-xl px-4 py-3 bg-gray-50 focus:bg-white focus:border-[#0f3faf] outline-none font-medium text-blue-600"
