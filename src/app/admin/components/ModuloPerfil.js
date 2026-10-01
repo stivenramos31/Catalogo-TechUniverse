@@ -53,6 +53,12 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
   const [archivoNuevo, setArchivoNuevo] = useState(null);
   const [guardandoPerfil, setGuardandoPerfil] = useState(false);
 
+  // --- ESTADO PARA LA IDENTIDAD DE MARCA (LOGO GLOBAL) ---
+  const [logoPreview, setLogoPreview] = useState("");
+  const [logoOriginal, setLogoOriginal] = useState("");
+  const [archivoLogoNuevo, setArchivoLogoNuevo] = useState(null);
+  const [guardandoLogo, setGuardandoLogo] = useState(false);
+
   // Estado para los contactos públicos y WhatsApp de recepción de pedidos
   const [contactos, setContactos] = useState({
     whatsapp_ventas: "50370000000",
@@ -92,6 +98,12 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
         };
         setContactos(info);
         setContactosOriginales(info);
+        
+        // Cargar el Logo desde la misma tabla
+        if(data.logo_url){
+            setLogoOriginal(data.logo_url);
+            setLogoPreview(data.logo_url);
+        }
       }
     };
     cargarContactos();
@@ -105,11 +117,22 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
     contactosOriginales &&
     JSON.stringify(contactos) !== JSON.stringify(contactosOriginales);
 
+  // --- LÓGICA DE DETECCIÓN DE CAMBIO DE LOGO ---
+  const hayCambiosLogo = archivoLogoNuevo !== null;
+
   const seleccionarFoto = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setArchivoNuevo(file);
     setFotoPreview(URL.createObjectURL(file));
+  };
+
+  // --- LÓGICA DE SELECCIÓN DE LOGO NUEVO ---
+  const seleccionarLogo = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setArchivoLogoNuevo(file);
+    setLogoPreview(URL.createObjectURL(file));
   };
 
   const guardarCambiosPerfil = async (e) => {
@@ -181,14 +204,70 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
     }
   };
 
-  // Convierte cualquier número (ej: "50371234567" o "71234567") al formato visual "7123-4567" (máx 8 dígitos)
+  // --- LÓGICA SEGURA DE GUARDADO DE LOGO GLOBAL ---
+  const guardarLogoTienda = async (e) => {
+    e.preventDefault();
+    if (!hayCambiosLogo || guardandoLogo) return;
+
+    // --- CONFIRMACIÓN DE SEGURIDAD ---
+    if (!window.confirm("⚠️ ADVERTENCIA DE SEGURIDAD INTERNA\n\n¿Estás seguro que deseas CAMBIAR EL LOGO GLOBAL de tu tienda?\n\nEste cambio se reflejará instantáneamente en todos los reportes, el Dashboard y el catálogo público para todos los clientes.")) {
+      return;
+    }
+
+    setGuardandoLogo(true);
+    try {
+      let urlFinal = logoOriginal;
+
+      // Subimos el logo nuevo a la carpeta 'productos' (reutilizando WebP)
+      const archivoWebP = await convertirAWebP(archivoLogoNuevo);
+      const fileName = `logo-tienda-${Date.now()}.webp`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("productos")
+        .upload(fileName, archivoWebP, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage
+        .from("productos")
+        .getPublicUrl(fileName);
+
+      urlFinal = publicUrlData.publicUrl;
+
+      // Borramos el logo viejo si existía y estaba en 'productos'
+      if (logoOriginal && logoOriginal.includes("/productos/")) {
+        const nombreViejo = decodeURIComponent(
+          logoOriginal.split("/productos/")[1].split("?")[0]
+        );
+        if (nombreViejo) {
+          await supabase.storage.from("productos").remove([nombreViejo]);
+        }
+      }
+
+      // Actualizamos la URL del logo en la tabla 'configuracion_tienda'
+      const { error: dbError } = await supabase
+        .from("configuracion_tienda")
+        .upsert({ id: 1, logo_url: urlFinal, actualizado_en: new Date().toISOString() });
+
+      if (dbError) throw dbError;
+
+      setLogoOriginal(urlFinal);
+      setLogoPreview(urlFinal);
+      setArchivoLogoNuevo(null);
+      alert("✅ ¡Logo de la tienda actualizado globalmente con éxito!");
+    } catch (error) {
+      alert("Error al guardar el logo: " + error.message);
+    } finally {
+      setGuardandoLogo(false);
+    }
+  };
+
   const formatearOchoDigitos = (valor = "") => {
     let soloNumeros = String(valor).replace(/\D/g, "");
-    // Si viene de la BD con el 503 adelante y tiene más de 8 dígitos, le quitamos el 503 inicial
     if (soloNumeros.startsWith("503") && soloNumeros.length > 8) {
       soloNumeros = soloNumeros.slice(3);
     }
-    soloNumeros = soloNumeros.slice(0, 8); // Límite estricto de 8 dígitos
+    soloNumeros = soloNumeros.slice(0, 8);
     if (soloNumeros.length > 4) {
       return `${soloNumeros.slice(0, 4)}-${soloNumeros.slice(4)}`;
     }
@@ -219,9 +298,7 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
       const datosGuardar = {
         id: 1,
         ...contactos,
-        // Para el enlace de WhatsApp se guarda como 503 + 8 dígitos sin guiones (ej: 50371234567)
         whatsapp_ventas: `503${ochoDigitosWhatsApp}`,
-        // Para mostrar en la tienda se guarda bonito (ej: +503 7123-4567)
         telefono_visible: `+503 ${ochoDigitosVisible}`,
         actualizado_en: new Date().toISOString(),
       };
@@ -248,7 +325,7 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
       <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border">
         <div className="border-b pb-4 mb-8">
           <h2 className="font-black text-xl sm:text-2xl text-gray-800 flex items-center gap-2">
-            <span>⚙️</span> Configuración del Perfil
+            <span>👨‍💻</span> Identidad de Marlon Ramos
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
             Personaliza tu identidad en el panel de administración.
@@ -291,7 +368,7 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
           <div className="md:col-span-2 space-y-5">
             <div>
               <label className="block text-xs font-black text-gray-500 uppercase tracking-wider mb-1.5">
-                Correo Electrónico (Único)
+                Correo Electrónico
               </label>
               <div className="w-full bg-gray-100 border border-gray-200 rounded-xl px-4 py-3 text-gray-600 font-bold text-sm flex items-center gap-2 select-none">
                 <span>🔒</span>
@@ -328,7 +405,74 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
         </form>
       </div>
 
-      {/* BLOQUE 2: ADMINISTRACIÓN DE CONTACTOS Y WHATSAPP DE LA TIENDA */}
+      {/* --- BLOQUE 2: IDENTIDAD DE MARCA (LOGO GLOBAL SEGURO) --- */}
+      <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border">
+        <div className="border-b pb-4 mb-8">
+          <h2 className="font-black text-xl sm:text-2xl text-gray-800 flex items-center gap-2">
+            <span>⭐</span> Identidad de Marca Global (Logo)
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+            Este logo se usará en tus reportes contables, el Dashboard y el catálogo público.
+          </p>
+        </div>
+
+        <form onSubmit={guardarLogoTienda} className="flex flex-col md:flex-row items-center gap-8">
+            <div className="flex flex-col items-center shrink-0">
+                <div className="relative w-40 h-40 rounded-3xl border-4 border-dashed border-gray-300 p-2 bg-gray-50 flex items-center justify-center shadow-md overflow-hidden">
+                    {logoPreview ? (
+                        <img
+                            src={logoPreview}
+                            alt="Logo Tech Universe"
+                            className="w-full h-full rounded-2xl object-contain"
+                        />
+                    ) : (
+                        <div className="text-gray-400 font-bold text-sm text-center">
+                            SIN LOGO<br/>ASIGNADO
+                        </div>
+                    )}
+
+                    <label
+                        htmlFor="input-logo-tienda"
+                        title="Cambiar Logo Global"
+                        className="absolute bottom-2 right-2 bg-gray-900 hover:bg-black text-white w-10 h-10 rounded-2xl flex items-center justify-center cursor-pointer shadow-lg border-2 border-white transition-transform hover:scale-105"
+                    >
+                        📷
+                        <input
+                            id="input-logo-tienda"
+                            type="file"
+                            accept="image/*"
+                            onChange={seleccionarLogo}
+                            className="hidden"
+                        />
+                    </label>
+                </div>
+                <span className="text-[11px] font-bold text-gray-400 mt-3">
+                  Formato automático .webp
+                </span>
+            </div>
+
+            <div className="w-full space-y-4">
+                <div className="bg-orange-50 border border-orange-200 p-4 rounded-xl">
+                    <p className="text-xs font-bold text-orange-900 uppercase">⚠️ IMPORTANTE DE SEGURIDAD</p>
+                    <p className="text-xs text-orange-800 leading-tight mt-1">Este logo es la identidad oficial de Tech Universe. Cambiarlo afectará a todos los reportes operativos y lo que ven tus clientes en internet instantáneamente. Por seguridad, te pediremos confirmar la acción antes de guardar.</p>
+                </div>
+                
+                <button
+                    type="submit"
+                    disabled={!hayCambiosLogo || guardandoLogo}
+                    className={`w-full font-black py-4 rounded-xl transition-all text-sm ${
+                        hayCambiosLogo && !guardandoLogo
+                            ? "bg-gray-900 hover:bg-black text-white shadow-lg cursor-pointer"
+                            : "bg-gray-100 text-gray-400 cursor-not-allowed"
+                    }`}
+                >
+                    {guardandoLogo ? "Guardando Logo Seguro..." : "💾 Guardar Nuevo Logo Global (Afecta todo)"}
+                </button>
+            </div>
+        </form>
+      </div>
+
+      {/* BLOQUE 3: ADMINISTRACIÓN DE CONTACTOS Y WHATSAPP DE LA TIENDA */}
       <div className="bg-white p-6 sm:p-10 rounded-3xl shadow-sm border">
         <div className="border-b pb-4 mb-6">
           <h2 className="font-black text-xl sm:text-2xl text-gray-800 flex items-center gap-2">
@@ -342,10 +486,9 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
         <form onSubmit={guardarContactosTienda} className="space-y-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             
-            {/* 🟢 CAMPO WHATSAPP CON +503 FIJO Y GUIÓN AUTOMÁTICO (0000-0000) */}
             <div className="bg-green-50/60 p-4 rounded-2xl border border-green-200 sm:col-span-2">
               <label className="block text-xs font-black text-green-900 uppercase mb-1.5">
-                🟢 Tu WhatsApp para Recibir Pedidos (Solo 8 dígitos) *
+                Tu WhatsApp para Recibir Pedidos *
               </label>
               <div className="flex items-center border-2 border-green-300 rounded-xl bg-white overflow-hidden focus-within:border-green-600 transition-colors">
                 <span className="bg-green-100 text-green-900 font-black px-4 py-3 text-lg border-r border-green-300 select-none">
@@ -354,22 +497,18 @@ export default function ModuloPerfil({ session, perfil, actualizarPerfilLocal })
                 <input
                   type="tel"
                   required
-                  maxLength={9} // 8 números + 1 guion automático
+                  maxLength={9} 
                   placeholder="7000-0000"
                   value={formatearOchoDigitos(contactos.whatsapp_ventas)}
                   onChange={(e) => manejarCambioTelefono("whatsapp_ventas", e.target.value)}
                   className="w-full px-4 py-2.5 font-black text-lg text-green-800 bg-white outline-none tracking-wider"
                 />
               </div>
-              <p className="text-[11px] text-green-700 font-medium mt-1.5">
-                A este WhatsApp llegarán las cotizaciones directas de tus clientes.
-              </p>
             </div>
 
-            {/* 📞 TELÉFONO SECUNDARIO / LOCAL TAMBIÉN CON +503 FIJO */}
             <div>
               <label className="block text-xs font-black text-gray-700 uppercase mb-1">
-                Teléfono de Llamadas / Local (8 dígitos)
+                Teléfono de Llamadas / Local
               </label>
               <div className="flex items-center border-2 border-gray-200 rounded-xl bg-white overflow-hidden focus-within:border-[#0f3faf] transition-colors">
                 <span className="bg-gray-100 text-gray-700 font-black px-3 py-2.5 text-sm border-r border-gray-200 select-none">

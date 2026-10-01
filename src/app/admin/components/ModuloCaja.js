@@ -7,7 +7,7 @@ const DEPARTAMENTOS_SV = ["San Miguel", "San Salvador", "Santa Ana", "La Liberta
 export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGenerado }) {
   const [carrito, setCarrito] = useState([]);
   const [procesando, setProcesando] = useState(false);
-  const [ventaExitosa, setVentaExitosa] = useState(false); // Animación Final
+  const [ventaExitosa, setVentaExitosa] = useState(false);
   
   const [formVenta, setFormVenta] = useState({ 
     cliente_nombre: "", departamento: "San Miguel", tipo_entrega: "Normal", 
@@ -24,7 +24,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
   }, {});
   const productosConStock = productos.filter(p => stockPorProducto[p.id] > 0);
 
-  // --- MATEMÁTICA ---
   const totalProductos = carrito.reduce((sum, item) => sum + (parseFloat(item.precio_unitario || 0) * parseInt(item.cantidad || 0)), 0);
   const envioCliente = parseFloat(formVenta.envio_cobrado_cliente || 0);
   const descuentoAplicado = parseFloat(formVenta.descuento || 0);
@@ -83,9 +82,8 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
     e.preventDefault();
     if (carrito.length === 0) return alert("El carrito está vacío.");
     
-    // VALIDACIÓN ESTRICTA EXPRESS
     if (formVenta.tipo_entrega === "Express" && (formVenta.envio_cobrado_cliente === "" || formVenta.envio_cobrado_cliente === null)) {
-      return alert("⚠️ OBLIGATORIO: Para envíos Express, debes ingresar cuánto le cobrarás al cliente por el envío.");
+      return alert("⚠️️ OBLIGATORIO: Para envíos Express, debes ingresar cuánto le cobrarás al cliente por el envío.");
     }
 
     setProcesando(true);
@@ -130,7 +128,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
         envio_cobrado: envioCliente, descuento: descuentoAplicado, total: totalVentaCliente, subtotal: totalProductos
       };
 
-      // Limpiar Formulario y Mostrar Animación de Éxito
       setCarrito([]);
       setFormVenta({ cliente_nombre: "", departamento: "San Miguel", tipo_entrega: "Normal", envio_cobrado_cliente: "", descuento: "", costo_envio_transporte: "", comision_metodo_pago: "", notas_internas: "" });
       
@@ -146,8 +143,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in w-full relative">
-      
-      {/* ANIMACIÓN DE VENTA EXITOSA */}
       {ventaExitosa && (
         <div className="fixed inset-0 bg-emerald-600/95 z-[100] flex flex-col items-center justify-center text-white animate-fade-in">
           <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 animate-bounce">
@@ -181,8 +176,8 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-black text-gray-800 truncate w-full">{item.titulo}</p>
                 <div className="flex flex-wrap gap-2 mt-2">
-                  <div className="flex items-center border rounded-lg overflow-hidden w-20"><span className="px-2 text-xs font-bold bg-gray-50">Cant</span><input type="number" min="1" value={item.cantidad} onChange={(e) => actualizarItemCarrito(item.id_temporal, 'cantidad', e.target.value)} className="w-full text-center text-xs font-black p-1 outline-none" /></div>
-                  <div className="flex items-center border rounded-lg overflow-hidden w-24"><span className="px-2 text-xs font-bold bg-gray-50">$</span><input type="number" step="0.01" value={item.precio_unitario} onChange={(e) => actualizarItemCarrito(item.id_temporal, 'precio_unitario', e.target.value)} className="w-full text-center text-xs font-black p-1 outline-none text-emerald-600" /></div>
+                  <div className="flex items-center border rounded-lg overflow-hidden w-20"><span className="px-2 text-xs font-bold bg-gray-50">Cant</span><input type="number" min="1" value={item.cantidad} onFocus={(e) => e.target.select()} onChange={(e) => actualizarItemCarrito(item.id_temporal, 'cantidad', e.target.value)} className="w-full text-center text-xs font-black p-1 outline-none" /></div>
+                  <div className="flex items-center border rounded-lg overflow-hidden w-24"><span className="px-2 text-xs font-bold bg-gray-50">$</span><input type="number" step="0.01" value={item.precio_unitario} onFocus={(e) => e.target.select()} onChange={(e) => actualizarItemCarrito(item.id_temporal, 'precio_unitario', e.target.value)} className="w-full text-center text-xs font-black p-1 outline-none text-emerald-600" /></div>
                 </div>
               </div>
               <button onClick={() => setCarrito(carrito.filter(i => i.id_temporal !== item.id_temporal))} className="text-red-500 p-2 font-black">X</button>
@@ -208,22 +203,22 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl">
                <label className="block text-[10px] font-black text-blue-800 uppercase mb-1">Envío Cobrado ($) {formVenta.tipo_entrega === "Express" && "*"}</label>
-               <input type="number" step="0.01" value={formVenta.envio_cobrado_cliente} onChange={(e) => manejarCambioVenta("envio_cobrado_cliente", e.target.value)} className="w-full bg-white border-2 border-blue-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-blue-600 text-[#0f3faf]" placeholder="$0.00" />
+               <input type="number" step="0.01" value={formVenta.envio_cobrado_cliente} onFocus={(e) => e.target.select()} onChange={(e) => manejarCambioVenta("envio_cobrado_cliente", e.target.value)} className="w-full bg-white border-2 border-blue-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-blue-600 text-[#0f3faf]" placeholder="0.00" />
             </div>
             <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
-               <label className="block text-[10px] font-black text-orange-800 uppercase mb-1">Descuento Global ($)</label>
-               <input type="number" step="0.01" value={formVenta.descuento} onChange={(e) => manejarCambioVenta("descuento", e.target.value)} className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-orange-600 text-orange-600" placeholder="$0.00" />
+               <label className="block text-[10px] font-black text-orange-800 uppercase mb-1">Descuento ($)</label>
+               <input type="number" step="0.01" value={formVenta.descuento} onFocus={(e) => e.target.select()} onChange={(e) => manejarCambioVenta("descuento", e.target.value)} className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-orange-600 text-orange-600" placeholder="0.00" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 p-3 bg-white border rounded-2xl">
             <div>
               <label className="block text-[9px] font-bold text-gray-400 uppercase truncate">{formVenta.tipo_entrega === "Express" ? "Agencia Fijo (Interno)" : "Costo Transporte"}</label>
-              <input type="number" step="0.01" value={formVenta.tipo_entrega === "Express" ? costoAgenciaFijo : formVenta.costo_envio_transporte} onChange={(e) => formVenta.tipo_entrega !== "Express" && manejarCambioVenta("costo_envio_transporte", e.target.value)} disabled={formVenta.tipo_entrega === "Express"} className="w-full bg-gray-50 rounded-lg px-2 py-1.5 text-sm font-bold text-red-600" placeholder="$0.00" />
+              <input type="number" step="0.01" value={formVenta.tipo_entrega === "Express" ? costoAgenciaFijo : formVenta.costo_envio_transporte} onFocus={(e) => e.target.select()} onChange={(e) => formVenta.tipo_entrega !== "Express" && manejarCambioVenta("costo_envio_transporte", e.target.value)} disabled={formVenta.tipo_entrega === "Express"} className="w-full bg-gray-50 rounded-lg px-2 py-1.5 text-sm font-bold text-red-600" placeholder="0.00" />
             </div>
             <div>
               <label className="block text-[9px] font-bold text-gray-400 uppercase truncate">{formVenta.tipo_entrega === "Express" ? "Comisión 2.5% (Interno)" : "Comisión Extra"}</label>
-              <input type="number" step="0.01" value={formVenta.tipo_entrega === "Express" ? comisionAgencia.toFixed(2) : formVenta.comision_metodo_pago} onChange={(e) => formVenta.tipo_entrega !== "Express" && manejarCambioVenta("comision_metodo_pago", e.target.value)} disabled={formVenta.tipo_entrega === "Express"} className="w-full bg-gray-50 rounded-lg px-2 py-1.5 text-sm font-bold text-red-600" placeholder="$0.00" />
+              <input type="number" step="0.01" value={formVenta.tipo_entrega === "Express" ? comisionAgencia.toFixed(2) : formVenta.comision_metodo_pago} onFocus={(e) => e.target.select()} onChange={(e) => formVenta.tipo_entrega !== "Express" && manejarCambioVenta("comision_metodo_pago", e.target.value)} disabled={formVenta.tipo_entrega === "Express"} className="w-full bg-gray-50 rounded-lg px-2 py-1.5 text-sm font-bold text-red-600" placeholder="0.00" />
             </div>
           </div>
 
@@ -246,11 +241,11 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
             <div className="grid grid-cols-2 gap-4 mb-6 mt-4">
               <div className="text-left">
                 <label className="block text-[11px] font-bold text-gray-500">CANTIDAD *</label>
-                <input type="number" min="1" max={stockPorProducto[productoPorConfirmar.id]} value={datosIngreso.cantidad} onChange={(e) => setDatosIngreso({...datosIngreso, cantidad: e.target.value})} className="w-full border-2 rounded-xl px-3 py-3 text-lg font-black text-center" />
+                <input type="number" min="1" max={stockPorProducto[productoPorConfirmar.id]} value={datosIngreso.cantidad} onFocus={(e) => e.target.select()} onChange={(e) => setDatosIngreso({...datosIngreso, cantidad: e.target.value})} className="w-full border-2 rounded-xl px-3 py-3 text-lg font-black text-center" />
               </div>
               <div className="text-left">
                 <label className="block text-[11px] font-bold text-gray-500">PRECIO C/U ($) *</label>
-                <input type="number" step="0.01" value={datosIngreso.precio} onChange={(e) => setDatosIngreso({...datosIngreso, precio: e.target.value})} className="w-full border-2 rounded-xl px-3 py-3 text-lg font-black text-emerald-600 text-center" />
+                <input type="number" step="0.01" value={datosIngreso.precio} onFocus={(e) => e.target.select()} onChange={(e) => setDatosIngreso({...datosIngreso, precio: e.target.value})} className="w-full border-2 rounded-xl px-3 py-3 text-lg font-black text-emerald-600 text-center" />
               </div>
             </div>
             <div className="flex gap-2">
