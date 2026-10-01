@@ -9,11 +9,9 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
   const [mostrarReporte, setMostrarReporte] = useState(false);
   const reporteRef = useRef(null);
   
-  // Estado para el logo seguro
   const [logoUrl, setLogoUrl] = useState("");
 
   useEffect(() => {
-    // Cargar el logo desde la tabla de configuración de la tienda
     const cargarConfig = async () => {
       const { data } = await supabase.from('configuracion_tienda').select('logo_url').eq('id', 1).maybeSingle();
       if(data?.logo_url) setLogoUrl(data.logo_url);
@@ -22,31 +20,22 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
   }, []);
 
   // --- CÁLCULOS FINANCIEROS COMPLETOS ---
-  // Ingresos
   const ingresoBrutoTotal = ventas.reduce((acc, v) => acc + parseFloat(v.ingreso_total_cliente || 0), 0);
-  
-  // Costos Operativos y Deducibles
   const costoMercanciaVendida = ventas.reduce((acc, v) => acc + parseFloat(v.costo_total_productos || 0), 0);
   const gastosLogistica = ventas.reduce((acc, v) => acc + parseFloat(v.costo_envio_transporte || 0), 0);
   const comisionesMetodosPago = ventas.reduce((acc, v) => acc + parseFloat(v.comision_metodo_pago || 0), 0);
   const totalDescuentos = ventas.reduce((acc, v) => acc + parseFloat(v.descuento || 0), 0);
-  
-  // Ganancia Neta
   const gananciaNetaTotal = ventas.reduce((acc, v) => acc + parseFloat(v.ganancia_neta_limpia || 0), 0);
   const margenGanancia = ingresoBrutoTotal > 0 ? ((gananciaNetaTotal / ingresoBrutoTotal) * 100).toFixed(1) : 0;
-
-  // Activos / Inventario (Total Histórico vs Disponible)
   const inversionTotalHistorica = lotes.reduce((acc, l) => acc + (parseFloat(l.costo_unitario) * parseInt(l.cantidad_inicial)), 0);
   const valorInventarioActual = lotes.reduce((acc, l) => acc + (parseFloat(l.costo_unitario) * parseInt(l.cantidad_disponible)), 0);
 
-  // --- EXPORTACIÓN DEL REPORTE (Tamaño Carta) ---
+  // --- EXPORTACIÓN DEL REPORTE ---
   const exportarPDF = async () => {
     if (!reporteRef.current) return;
     setGenerando(true);
-    const canvas = await html2canvas(reporteRef.current, { scale: 3, useCORS: true }); // useCORS es vital para el logo externo
+    const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    
-    // Formato Carta: 215.9mm x 279.4mm
     const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
     pdf.addImage(imgData, "JPEG", 0, 0, 215.9, 279.4);
     pdf.save(`Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -56,7 +45,7 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
   const exportarImagen = async () => {
     if (!reporteRef.current) return;
     setGenerando(true);
-    const canvas = await html2canvas(reporteRef.current, { scale: 3, useCORS: true });
+    const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
     const imgData = canvas.toDataURL("image/jpeg", 1.0);
     const link = document.createElement("a"); link.href = imgData; 
     link.download = `Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.jpg`; 
@@ -96,21 +85,40 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
         <div className="bg-white border-2 border-gray-100 p-5 rounded-3xl shadow-sm"><p className="text-sm font-black text-gray-800">Gastos y Envíos</p><p className="text-2xl font-black text-red-500">-${(gastosLogistica + comisionesMetodosPago).toFixed(2)}</p></div>
       </div>
 
-      {/* --- MODAL DEL REPORTE CONTABLE AUDITADO (TAMAÑO CARTA A4) --- */}
+      {/* --- MODAL DEL REPORTE CONTABLE (DISEÑO FLUIDO PARA MÓVIL) --- */}
       {mostrarReporte && (
-        <div className="fixed inset-0 bg-black/80 z-[90] flex p-4 justify-center items-start overflow-y-auto animate-fade-in">
-          <div className="flex flex-col md:flex-row gap-6 w-full max-w-6xl mt-4 mb-10">
+        <div className="fixed inset-0 bg-black/80 z-[90] flex p-2 sm:p-6 justify-center items-center animate-fade-in">
+          
+          <div className="bg-white rounded-[2rem] w-full max-w-6xl h-[95vh] flex flex-col md:flex-row overflow-hidden shadow-2xl">
             
-            {/* VISTA PREVIA DEL REPORTE */}
-            <div className="bg-gray-200 p-8 flex justify-center w-full md:w-2/3 overflow-x-auto rounded-3xl shadow-inner relative">
+            {/* PANEL DE BOTONES (Fijo arriba en móvil, a la derecha en PC) */}
+            <div className="p-5 md:p-8 w-full md:w-1/3 bg-gray-50 border-b md:border-b-0 md:border-l border-gray-200 shrink-0 z-10 order-1 md:order-2 overflow-y-auto">
+              <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2">Reporte Auditado</h3>
+              <p className="text-xs md:text-sm text-gray-500 mb-6">El documento ya incluye las firmas y la validación de tiempo. Selecciona el formato.</p>
               
-              {/* Contenedor exacto de Tamaño Carta (816x1056 px ratio) */}
-              <div ref={reporteRef} className="bg-white p-12 shadow-md shrink-0 text-gray-900 relative" style={{ width: '215.9mm', minHeight: '279.4mm' }}>
+              <div className="space-y-3">
+                <button onClick={exportarImagen} disabled={generando} className="w-full bg-[#0f3faf] text-white font-black py-3 sm:py-4 rounded-xl shadow-md hover:bg-blue-800 flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 text-sm sm:text-base">
+                  <span className="text-lg">🖼️</span> {generando ? "Procesando..." : "Descargar Imagen"}
+                </button>
+                <button onClick={exportarPDF} disabled={generando} className="w-full bg-gray-900 text-white font-black py-3 sm:py-4 rounded-xl shadow-md hover:bg-black flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 text-sm sm:text-base">
+                  <span className="text-lg">📄</span> {generando ? "Procesando..." : "Descargar PDF (A4)"}
+                </button>
+              </div>
+
+              <button onClick={() => setMostrarReporte(false)} className="mt-4 sm:mt-6 w-full text-center text-red-500 font-black hover:text-red-700 py-3 rounded-xl bg-red-50 border border-red-100">
+                ❌ Cerrar vista previa
+              </button>
+            </div>
+
+            {/* VISTA PREVIA DEL REPORTE (Scroll independiente, Abajo en móvil, Izquierda en PC) */}
+            <div className="bg-gray-200 p-4 sm:p-8 w-full md:w-2/3 flex-1 overflow-auto order-2 md:order-1 relative">
+              
+              {/* Contenedor exacto de Tamaño Carta (816px x 1056px) */}
+              <div ref={reporteRef} className="bg-white p-8 sm:p-12 shadow-md shrink-0 text-gray-900 mx-auto" style={{ width: '816px', minHeight: '1056px' }}>
                 
                 {/* CABECERA AUDITADA CON LOGO Y FECHA */}
                 <div className="border-b-4 border-[#0f3faf] pb-6 mb-8 flex justify-between items-start">
                   <div className="flex items-center gap-4">
-                    {/* Placeholder o Logo */}
                     {logoUrl ? (
                         <img src={logoUrl} alt="Logo TechUniverse" className="w-20 h-20 rounded-2xl object-cover shrink-0" crossOrigin="anonymous" />
                     ) : (
@@ -209,7 +217,7 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
                 </div>
 
                 {/* FIRMAS DE AUDITORÍA */}
-                <div className="mt-20 flex justify-between items-end border-t border-gray-200 pt-10 px-8 SignatureGroup">
+                <div className="mt-20 flex justify-between items-end border-t border-gray-200 pt-10 px-8">
                   <div className="text-center w-64">
                     <div className="border-b border-gray-800 mb-2 h-10 flex items-end justify-center">
                       <span className="text-sm font-serif italic text-gray-800">{perfil?.nombre_completo || "Administrador"}</span>
@@ -232,25 +240,6 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
                 </div>
 
               </div>
-            </div>
-
-            {/* PANEL DE BOTONES */}
-            <div className="bg-white p-6 md:p-8 rounded-3xl w-full md:w-1/3 h-fit sticky top-4 shadow-xl">
-              <h3 className="text-2xl font-black text-gray-900 mb-2">Reporte Auditado</h3>
-              <p className="text-sm text-gray-500 mb-8">Este reporte en Tamaño Carta (A4) incluye fecha exacta, hora al segundo, responsable y espacios para firmas.</p>
-              
-              <div className="space-y-3">
-                <button onClick={exportarImagen} disabled={generando} className="w-full bg-[#0f3faf] text-white font-black py-4 rounded-xl shadow-lg hover:bg-blue-800 flex items-center justify-center gap-3 disabled:opacity-50">
-                  <span className="text-xl">🖼️</span> {generando ? "Generando..." : "Descargar como Imagen"}
-                </button>
-                <button onClick={exportarPDF} disabled={generando} className="w-full bg-gray-900 text-white font-black py-4 rounded-xl shadow-lg hover:bg-black flex items-center justify-center gap-3 disabled:opacity-50">
-                  <span className="text-xl">📄</span> {generando ? "Generando..." : "Descargar PDF (Imprimir)"}
-                </button>
-              </div>
-
-              <button onClick={() => setMostrarReporte(false)} className="mt-8 w-full text-center text-gray-400 font-bold hover:text-gray-800">
-                Cerrar vista previa
-              </button>
             </div>
 
           </div>
