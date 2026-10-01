@@ -23,16 +23,14 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
     cargarConfig();
   }, []);
 
-  // Efecto para calcular la escala exacta de la hoja según la pantalla
   useEffect(() => {
     const ajustarEscala = () => {
       if (vistaPreviaRef.current) {
-        // Obtenemos el ancho de la pantalla disponible menos un poco de espacio a los lados
         const anchoDisponible = vistaPreviaRef.current.offsetWidth - 32; 
         if (anchoDisponible < 816) {
-          setEscala(anchoDisponible / 816); // Se encoge en celulares
+          setEscala(anchoDisponible / 816);
         } else {
-          setEscala(1); // Tamaño real en PC
+          setEscala(1);
         }
       }
     };
@@ -56,35 +54,50 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
   const inversionTotalHistorica = lotes.reduce((acc, l) => acc + (parseFloat(l.costo_unitario) * parseInt(l.cantidad_inicial)), 0);
   const valorInventarioActual = lotes.reduce((acc, l) => acc + (parseFloat(l.costo_unitario) * parseInt(l.cantidad_disponible)), 0);
 
-  // --- EXPORTACIÓN DEL REPORTE ---
-  const exportarPDF = async () => {
+  // --- EXPORTACIÓN DEL REPORTE CON TRUCO DE RE-ESCALADO PARA ANDROID ---
+  const exportarPDF = () => {
     if (!reporteRef.current) return;
     setGenerando(true);
     
-    // Captura exacta del contenedor sin importar la escala visual
-    const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
-    const imgData = canvas.toDataURL("image/jpeg", 0.95);
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
-    pdf.addImage(imgData, "JPEG", 0, 0, 215.9, 279.4);
-    pdf.save(`Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.pdf`);
-    
-    setGenerando(false);
+    // Esperamos 300ms para que React quite el Zoom visual y Android lo lea al 100%
+    setTimeout(async () => {
+      try {
+        const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL("image/jpeg", 0.95);
+        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+        pdf.addImage(imgData, "JPEG", 0, 0, 215.9, 279.4);
+        pdf.save(`Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.pdf`);
+      } catch (error) {
+        alert("Error al generar el PDF: " + error.message);
+      } finally {
+        setGenerando(false);
+      }
+    }, 300);
   };
 
-  const exportarImagen = async () => {
+  const exportarImagen = () => {
     if (!reporteRef.current) return;
     setGenerando(true);
     
-    const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
-    const imgData = canvas.toDataURL("image/jpeg", 1.0);
-    const link = document.createElement("a"); link.href = imgData; 
-    link.download = `Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.jpg`; 
-    link.click();
-    
-    setGenerando(false);
+    setTimeout(async () => {
+      try {
+        const canvas = await html2canvas(reporteRef.current, { scale: 2, useCORS: true });
+        const imgData = canvas.toDataURL("image/jpeg", 1.0);
+        const link = document.createElement("a"); link.href = imgData; 
+        link.download = `Reporte_Financiero_TechUniverse_${new Date().toISOString().split('T')[0]}.jpg`; 
+        link.click();
+      } catch (error) {
+        alert("Error al generar la Imagen: " + error.message);
+      } finally {
+        setGenerando(false);
+      }
+    }, 300);
   };
 
   const fechaActual = new Date();
+  
+  // Cuando se está generando el reporte, forzamos la escala a 1 para evitar el bug de Android
+  const escalaVisual = generando ? 1 : escala;
 
   return (
     <div className="space-y-6 animate-fade-in w-full relative">
@@ -122,34 +135,35 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
           
           <div className="bg-white rounded-[2rem] w-full max-w-6xl h-[95vh] flex flex-col md:flex-row overflow-hidden shadow-2xl">
             
-            {/* PANEL DE BOTONES (Fijo arriba en móvil, a la derecha en PC) */}
+            {/* PANEL DE BOTONES */}
             <div className="p-5 md:p-8 w-full md:w-1/3 bg-gray-50 border-b md:border-b-0 md:border-l border-gray-200 shrink-0 z-10 order-1 md:order-2 overflow-y-auto">
               <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-2">Reporte Auditado</h3>
               <p className="text-xs md:text-sm text-gray-500 mb-6">El documento ya incluye las firmas y la validación de tiempo. Selecciona el formato.</p>
               
               <div className="space-y-3">
                 <button onClick={exportarImagen} disabled={generando} className="w-full bg-[#0f3faf] text-white font-black py-3 sm:py-4 rounded-xl shadow-md hover:bg-blue-800 flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 text-sm sm:text-base">
-                  <span className="text-lg">🖼️</span> {generando ? "Procesando..." : "Descargar Imagen"}
+                  <span className="text-lg">🖼️</span> {generando ? "Procesando Imagen..." : "Descargar Imagen"}
                 </button>
                 <button onClick={exportarPDF} disabled={generando} className="w-full bg-gray-900 text-white font-black py-3 sm:py-4 rounded-xl shadow-md hover:bg-black flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50 text-sm sm:text-base">
-                  <span className="text-lg">📄</span> {generando ? "Procesando..." : "Descargar PDF (Carta)"}
+                  <span className="text-lg">📄</span> {generando ? "Procesando PDF..." : "Descargar PDF (Carta)"}
                 </button>
               </div>
 
-              <button onClick={() => setMostrarReporte(false)} className="mt-4 sm:mt-6 w-full text-center text-red-500 font-black hover:text-red-700 py-3 rounded-xl bg-red-50 border border-red-100">
+              <button onClick={() => setMostrarReporte(false)} disabled={generando} className="mt-4 sm:mt-6 w-full text-center text-red-500 font-black hover:text-red-700 py-3 rounded-xl bg-red-50 border border-red-100 disabled:opacity-50">
                 ❌ Cerrar vista previa
               </button>
             </div>
 
-            {/* VISTA PREVIA DEL REPORTE (Ajustado automáticamente) */}
+            {/* VISTA PREVIA DEL REPORTE */}
             <div ref={vistaPreviaRef} className="bg-gray-200 py-4 sm:py-8 flex justify-center items-start w-full md:w-2/3 flex-1 overflow-auto order-2 md:order-1 relative">
               
-              {/* Envoltorio que hace el Zoom Out sin deformar */}
+              {/* Envoltorio de escala (Aquí ocurre la magia para Android) */}
               <div style={{ 
-                  transform: `scale(${escala})`, 
+                  transform: `scale(${escalaVisual})`, 
                   transformOrigin: 'top center', 
-                  width: `${816 * escala}px`, 
-                  height: `${1056 * escala}px` 
+                  width: `${816 * escalaVisual}px`, 
+                  height: `${1056 * escalaVisual}px`,
+                  transition: 'transform 0.2s ease-in-out'
               }}>
                   
                 {/* Contenedor exacto de Tamaño Carta Original (816px x 1056px) */}
@@ -159,14 +173,12 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
                   <div className="border-b-4 border-[#0f3faf] pb-6 mb-8 flex justify-between items-start">
                     <div className="flex items-center gap-5">
                       {logoUrl ? (
-                          /* Se ajustó la imagen para aceptar logos anchos (de texto) sin recortarlos */
                           <img src={logoUrl} alt="Logo TechUniverse" className="h-16 sm:h-20 w-auto max-w-[280px] object-contain shrink-0" crossOrigin="anonymous" />
                       ) : (
                           <div className="h-16 w-32 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl flex items-center justify-center text-gray-400 font-bold text-[10px] text-center shrink-0">
                             ESPACIO<br/>LOGO
                           </div>
                       )}
-                      {/* Línea separadora visual para que el texto de la derecha respire */}
                       <div className="border-l-2 border-gray-100 pl-5">
                         <h1 className="text-3xl sm:text-4xl font-black tracking-tighter text-[#0f3faf] mb-1">TECH UNIVERSE</h1>
                         <p className="text-sm font-bold text-gray-500 tracking-widest uppercase">Reporte Financiero y Operativo</p>
