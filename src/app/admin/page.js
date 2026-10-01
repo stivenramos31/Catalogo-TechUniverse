@@ -11,13 +11,16 @@ import ModuloComentarios from "./components/ModuloComentarios";
 import ModuloCupones from "./components/ModuloCupones";
 import ModuloPerfil from "./components/ModuloPerfil";
 import ModuloVisitas from "./components/ModuloVisitas";
+import ModuloOperaciones from "./components/ModuloOperaciones";
 
+// 👇 AQUÍ AGREGAMOS LA NUEVA PESTAÑA DE FINANZAS Y LOTES
 const PESTANAS_ADMIN = [
   { id: "productos", icono: "📦", texto: "Productos" },
   { id: "categorias", icono: "🏷️", texto: "Categorías" },
   { id: "ofertas", icono: "⚡", texto: "Ofertas" },
   { id: "cotizaciones", icono: "📄", texto: "Cotizaciones" },
   { id: "cupones", icono: "💸", texto: "Cupones" },
+  { id: "operaciones", icono: "📊", texto: "Finanzas y Lotes" },
   { id: "comentarios", icono: "⭐", texto: "Comentarios" },
   { id: "visitas", icono: "🌐", texto: "Visitas IP" },
 ];
@@ -396,6 +399,12 @@ export default function AdminDashboard() {
         )}
         {vistaActiva === "cupones" && <ModuloCupones />}
         {vistaActiva === "visitas" && <ModuloVisitas />}
+        
+        {/* 👇 AQUÍ SE RENDERIZA EL NUEVO MÓDULO DE FINANZAS */}
+        {vistaActiva === "operaciones" && (
+          <ModuloOperaciones productos={productos} />
+        )}
+
         {vistaActiva === "perfil" && (
           <ModuloPerfil
             session={session}
