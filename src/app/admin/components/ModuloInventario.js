@@ -1,140 +1,275 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 
 export default function ModuloInventario({ productos, lotes, recargarDatos }) {
-  const [formLote, setFormLote] = useState({ producto_id: "", costo_unitario: "", cantidad_inicial: "", proveedor_o_nota: "" });
-  const [loteEnEdicion, setLoteEnEdicion] = useState(null);
+  const [formLote, setFormLote] = useState({ producto_id: "", costo_unitario: "", cantidad: "", notas: "" });
   const [procesando, setProcesando] = useState(false);
+  const [confirmacion, setConfirmacion] = useState(null);
+  
+  // Referencia para el auto-scroll y focus del ingreso rápido
+  const costoInputRef = useRef(null);
 
-  // --- FUNCIONES DE INVENTARIO ---
-  const guardarLote = async (e) => {
-    e.preventDefault();
-    setProcesando(true);
-    try {
-      const datos = {
-        producto_id: formLote.producto_id,
-        costo_unitario: parseFloat(formLote.costo_unitario),
-        cantidad_inicial: parseInt(formLote.cantidad_inicial),
-        cantidad_disponible: parseInt(formLote.cantidad_inicial),
-        proveedor_o_nota: formLote.proveedor_o_nota,
-      };
-      const { error } = await supabase.from("lotes_inventario").insert([datos]);
-      if (error) throw error;
-      alert("✅ Lote registrado.");
-      setFormLote({ producto_id: "", costo_unitario: "", cantidad_inicial: "", proveedor_o_nota: "" });
-      recargarDatos();
-    } catch (error) { alert("Error: " + error.message); } finally { setProcesando(false); }
+  // --- DETECTOR INTELIGENTE DE IMÁGENES ---
+  const obtenerImagen = (prod) => {
+    if (prod.imagenes && Array.isArray(prod.imagenes) && prod.imagenes.length > 0) return prod.imagenes[0];
+    if (typeof prod.imagenes === 'string' && prod.imagenes.startsWith('[')) {
+      try { return JSON.parse(prod.imagenes)[0]; } catch(e){}
+    }
+    return prod.imagen_principal || prod.imagen_url || prod.imagen || null;
   };
 
-  const guardarEdicionLote = async (e) => {
+  // 1. AGRUPAR LOTES POR PRODUCTO (Para vista de Inventario)
+  const inventarioAgrupado = productos.map(prod => {
+    const lotesActivos = lotes
+      .filter(l => l.producto_id === prod.id && l.cantidad_disponible > 0)
+      .sort((a, b) => new Date(a.fecha_ingreso) - new Date(b.fecha_ingreso));
+    
+    const stockTotal = lotesActivos.reduce((sum, l) => sum + l.cantidad_disponible, 0);
+    
+    return { ...prod, stockTotal, lotes: lotesActivos };
+  }).filter(p => p.stockTotal > 0);
+
+  // --- INGRESO RÁPIDO DESDE EL BOTÓN '+' ---
+  const prepararIngresoRapido = (producto_id) => {
+    setFormLote({ producto_id: String(producto_id), costo_unitario: "", cantidad: "", notas: "" });
+    if (costoInputRef.current) {
+      costoInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Pequeño retraso para asegurar que el scroll termine antes de enfocar
+      setTimeout(() => costoInputRef.current.focus(), 300);
+    }
+  };
+
+  // 2. MANEJO DEL FORMULARIO Y CONFIRMACIÓN
+  const iniciarRegistro = (e) => {
     e.preventDefault();
+    if (!formLote.producto_id || !formLote.costo_unitario || !formLote.cantidad) return alert("Llena los campos obligatorios");
+
+    const prodSeleccionado = productos.find(p => String(p.id) === String(formLote.producto_id));
+    const stockActual = inventarioAgrupado.find(p => String(p.id) === String(formLote.producto_id))?.stockTotal || 0;
+    const cantidadNueva = parseInt(formLote.cantidad);
+
+    setConfirmacion({
+      producto: prodSeleccionado,
+      costo_unitario: parseFloat(formLote.costo_unitario),
+      cantidad_nueva: cantidadNueva,
+      stock_actual: stockActual,
+      stock_final: stockActual + cantidadNueva,
+      notas: formLote.notas
+    });
+  };
+
+  const confirmarGuardado = async () => {
     setProcesando(true);
     try {
-      const loteOriginal = lotes.find(l => l.id === loteEnEdicion.id);
-      const diferencia = parseInt(loteEnEdicion.cantidad_inicial) - loteOriginal.cantidad_inicial;
-      const nuevaDisponible = loteOriginal.cantidad_disponible + diferencia;
-
-      if (nuevaDisponible < 0) throw new Error("Has vendido unidades, no puedes bajar tanto la cantidad.");
-
-      const { error } = await supabase.from("lotes_inventario").update({
-        costo_unitario: parseFloat(loteEnEdicion.costo_unitario), cantidad_inicial: parseInt(loteEnEdicion.cantidad_inicial),
-        cantidad_disponible: nuevaDisponible, proveedor_o_nota: loteEnEdicion.proveedor_o_nota
-      }).eq("id", loteEnEdicion.id);
+      const { error } = await supabase.from("lotes_inventario").insert([{
+        producto_id: confirmacion.producto.id,
+        costo_unitario: confirmacion.costo_unitario,
+        cantidad_inicial: confirmacion.cantidad_nueva,
+        cantidad_disponible: confirmacion.cantidad_nueva,
+        notas: confirmacion.notas || null
+      }]);
 
       if (error) throw error;
-      alert("✅ Lote actualizado con éxito.");
-      setLoteEnEdicion(null);
+
+      setFormLote({ producto_id: "", costo_unitario: "", cantidad: "", notas: "" });
+      setConfirmacion(null);
       recargarDatos();
-    } catch (error) { alert(error.message); } finally { setProcesando(false); }
+      alert("✅ Inversión y nuevo lote registrado correctamente.");
+    } catch (error) {
+      alert("Error: " + error.message);
+    } finally {
+      setProcesando(false);
+    }
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in w-full">
-      {/* PANEL IZQUIERDO: FORMULARIO DE COMPRA */}
-      <div className="lg:col-span-1 bg-blue-50/40 p-6 rounded-3xl border border-blue-100/60 h-fit w-full">
-        <h3 className="font-black text-gray-800 mb-5 text-lg flex items-center gap-2"><span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-full text-sm">➕</span> Registrar Compra</h3>
-        <form onSubmit={guardarLote} className="space-y-4">
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
+      
+      {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO */}
+      <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 h-fit lg:col-span-1">
+        <h3 className="font-black text-[#0f3faf] mb-6 text-xl flex items-center gap-2">
+          <span>➕</span> Registrar Compra
+        </h3>
+        <form onSubmit={iniciarRegistro} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Producto Adquirido *</label>
-            <select required value={formLote.producto_id} onChange={(e) => setFormLote({...formLote, producto_id: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-600 bg-white truncate">
-              <option value="">Selecciona...</option>
-              {productos.map(p => <option key={p.id} value={p.id}>{p.titulo}</option>)}
+            <label className="block text-xs font-black text-gray-600 uppercase mb-1">Producto Adquirido *</label>
+            <select 
+              value={formLote.producto_id} 
+              onChange={(e) => setFormLote({ ...formLote, producto_id: e.target.value })} 
+              className="w-full border-2 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#0f3faf] bg-white text-gray-800 font-bold"
+            >
+              <option value="">Selecciona un producto...</option>
+              {productos.map(p => (
+                <option key={p.id} value={p.id}>{p.titulo}</option>
+              ))}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Costo c/u ($) *</label>
-              <input type="number" step="0.01" required value={formLote.costo_unitario} onChange={(e) => setFormLote({...formLote, costo_unitario: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-600 text-red-600 font-black" placeholder="0.00" />
+              <label className="block text-xs font-black text-gray-600 uppercase mb-1">Costo C/U ($) *</label>
+              <input 
+                ref={costoInputRef}
+                type="number" step="0.01" min="0.01" 
+                value={formLote.costo_unitario} 
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setFormLote({ ...formLote, costo_unitario: e.target.value })} 
+                className="w-full border-2 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#0f3faf] text-center font-black text-[#0f3faf]" 
+                placeholder="0.00" 
+              />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Cantidad *</label>
-              <input type="number" min="1" required value={formLote.cantidad_inicial} onChange={(e) => setFormLote({...formLote, cantidad_inicial: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-600 font-black" placeholder="0" />
+              <label className="block text-xs font-black text-gray-600 uppercase mb-1">Cantidad *</label>
+              <input 
+                type="number" min="1" 
+                value={formLote.cantidad} 
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setFormLote({ ...formLote, cantidad: e.target.value })} 
+                className="w-full border-2 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#0f3faf] text-center font-black" 
+                placeholder="0" 
+              />
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 uppercase mb-1.5">Notas (Opcional)</label>
-            <input type="text" value={formLote.proveedor_o_nota} onChange={(e) => setFormLote({...formLote, proveedor_o_nota: e.target.value})} className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-600" placeholder="Ej: Compra local" />
+            <label className="block text-xs font-black text-gray-600 uppercase mb-1">Notas (Opcional)</label>
+            <input 
+              type="text" 
+              value={formLote.notas} 
+              onChange={(e) => setFormLote({ ...formLote, notas: e.target.value })} 
+              className="w-full border-2 rounded-xl px-3 py-3 text-sm outline-none focus:border-[#0f3faf]" 
+              placeholder="Ej: Proveedor local, envío express" 
+            />
           </div>
-          <button type="submit" disabled={procesando} className="w-full bg-[#0f3faf] text-white font-black py-3 rounded-xl hover:bg-blue-800 shadow-md mt-2">
-            {procesando ? "Guardando..." : "Registrar Inversión"}
+          <button type="submit" className="w-full bg-[#0f3faf] text-white font-black py-4 rounded-xl hover:bg-blue-800 transition-colors shadow-lg active:scale-95 mt-2">
+            Registrar Inversión
           </button>
         </form>
       </div>
 
-      {/* PANEL DERECHO: LISTA DE LOTES */}
-      <div className="lg:col-span-2 w-full">
-        <h3 className="font-black text-gray-800 mb-5 text-lg">📦 Lotes con Stock Físico</h3>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {lotes.filter(l => l.cantidad_disponible > 0).map(lote => {
-            const prod = productos.find(p => String(p.id) === String(lote.producto_id));
-            return (
-              <div key={lote.id} className="border border-gray-100 p-4 rounded-2xl shadow-sm bg-white relative group">
-                <button onClick={() => setLoteEnEdicion(lote)} className="absolute top-2 right-2 bg-gray-100 hover:bg-blue-100 hover:text-[#0f3faf] text-gray-400 w-8 h-8 rounded-full flex items-center justify-center transition-colors">✏️</button>
-                <div className="inline-block bg-blue-50 text-[#0f3faf] text-xs font-black px-2.5 py-1 rounded-lg border border-blue-100 mb-2">Costo: ${parseFloat(lote.costo_unitario).toFixed(2)}</div>
-                <p className="font-black text-gray-800 text-sm line-clamp-2 leading-tight pr-8">{prod?.titulo}</p>
-                <div className="flex justify-between items-end mt-4 pt-4 border-t border-gray-50">
-                  <div>
-                    <p className="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-0.5">Disponibles</p>
-                    <p className="text-2xl font-black text-gray-900 leading-none">{lote.cantidad_disponible} <span className="text-xs font-medium text-gray-400">/ {lote.cantidad_inicial}</span></p>
+      {/* COLUMNA DERECHA: LISTA DE INVENTARIO (FILAS) */}
+      <div className="lg:col-span-2">
+        <h3 className="font-black text-gray-800 mb-6 text-xl flex items-center gap-2 px-2">
+          <span>📦</span> Inventario Actual (FIFO)
+        </h3>
+        
+        <div className="space-y-4">
+          {inventarioAgrupado.length === 0 ? (
+            <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
+              <p className="text-gray-500 font-bold">No hay inventario disponible.</p>
+            </div>
+          ) : (
+            inventarioAgrupado.map((prod) => {
+              const imgUrl = obtenerImagen(prod);
+              
+              return (
+              <div key={prod.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col hover:border-blue-200 transition-colors">
+                
+                {/* CABECERA DE LA FILA DEL PRODUCTO */}
+                <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-4 bg-gray-50/50">
+                  {/* Miniatura Dinámica y Segura */}
+                  <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-xl border p-1 shrink-0 flex items-center justify-center">
+                    {imgUrl ? (
+                      <img src={imgUrl} alt={prod.titulo} className="w-full h-full object-contain rounded-lg" loading="lazy" />
+                    ) : (
+                      <span className="text-xl sm:text-2xl text-gray-200">📦</span>
+                    )}
                   </div>
-                  <span className="text-[10px] font-bold text-gray-400">{new Date(lote.fecha_ingreso).toLocaleDateString()}</span>
+                  
+                  {/* Título */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-black text-gray-900 text-sm sm:text-base leading-tight truncate">{prod.titulo}</p>
+                    <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold mt-1 uppercase truncate">ID: {prod.id}</p>
+                  </div>
+
+                  {/* Stock Total Grande */}
+                  <div className="shrink-0 text-center px-2 sm:px-4 border-l border-gray-200">
+                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Stock</p>
+                    <p className="text-2xl sm:text-3xl font-black text-[#0f3faf] leading-none">{prod.stockTotal}</p>
+                  </div>
+
+                  {/* BOTÓN + INGRESO RÁPIDO */}
+                  <button
+                    onClick={() => prepararIngresoRapido(prod.id)}
+                    className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-[#0f3faf] text-white rounded-full flex items-center justify-center font-black text-2xl hover:bg-blue-800 transition-transform shadow-md hover:scale-105 active:scale-95 ml-1"
+                    title="Añadir nueva compra de este producto"
+                  >
+                    +
+                  </button>
                 </div>
+
+                {/* DESGLOSE DE LOTES (Mini-tabla) */}
+                <div className="bg-white px-4 pb-4 pt-2">
+                  <p className="text-[9px] font-bold text-gray-400 uppercase mb-2 ml-1">Lotes Activos (Se venden en este orden 👇)</p>
+                  <div className="space-y-2">
+                    {prod.lotes.map((lote, index) => (
+                      <div key={lote.id} className="flex justify-between items-center text-xs bg-gray-50 py-1.5 px-3 rounded-lg border border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <span className="font-black text-gray-400">#{index + 1}</span>
+                          <span className="font-bold text-gray-600">{new Date(lote.fecha_ingreso).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="font-bold text-orange-600">Costo: ${parseFloat(lote.costo_unitario).toFixed(2)}</span>
+                          <span className="font-black text-gray-900 bg-gray-200 px-2 py-0.5 rounded text-[10px]">Quedan: {lote.cantidad_disponible}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
               </div>
-            )
-          })}
-          {lotes.filter(l => l.cantidad_disponible > 0).length === 0 && (
-            <div className="sm:col-span-2 p-12 text-center border-2 border-dashed border-gray-200 rounded-3xl text-gray-400 font-bold">No hay inventario activo.</div>
+            )})
           )}
         </div>
       </div>
 
-      {/* MODAL DE EDICIÓN DE LOTE */}
-      {loteEnEdicion && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl">
-            <h3 className="font-black text-xl text-gray-900 mb-1">✏️ Editar Compra</h3>
-            <p className="text-xs font-bold text-red-500 mb-5">Ten cuidado, modificar esto afectará tus estadísticas.</p>
-            <form onSubmit={guardarEdicionLote} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Costo c/u ($)</label>
-                  <input type="number" step="0.01" required value={loteEnEdicion.costo_unitario} onChange={(e) => setLoteEnEdicion({...loteEnEdicion, costo_unitario: e.target.value})} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0f3faf] font-black" />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Cant. Original</label>
-                  <input type="number" min="1" required value={loteEnEdicion.cantidad_inicial} onChange={(e) => setLoteEnEdicion({...loteEnEdicion, cantidad_inicial: e.target.value})} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0f3faf] font-black" />
-                </div>
+      {/* --- MODAL DE CONFIRMACIÓN DE INGRESO --- */}
+      {confirmacion && (
+        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-2xl relative">
+            
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
+                <span className="text-3xl">📦</span>
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-600 uppercase mb-1">Notas</label>
-                <input type="text" value={loteEnEdicion.proveedor_o_nota || ""} onChange={(e) => setLoteEnEdicion({...loteEnEdicion, proveedor_o_nota: e.target.value})} className="w-full border-2 rounded-xl px-3 py-2.5 text-sm outline-none focus:border-[#0f3faf]" />
+              <h2 className="text-2xl font-black text-gray-900 leading-tight mb-2">Confirmar Ingreso</h2>
+              <p className="text-sm text-gray-600 font-bold">{confirmacion.producto.titulo}</p>
+            </div>
+
+            <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-6 border border-gray-100">
+              <div className="flex justify-between items-center border-b pb-2">
+                <span className="text-xs font-bold text-gray-500 uppercase">Stock Actual</span>
+                <span className="text-base font-black text-gray-800">{confirmacion.stock_actual} unid.</span>
               </div>
-              <div className="flex gap-2 mt-6">
-                <button type="button" onClick={() => setLoteEnEdicion(null)} className="flex-1 bg-gray-100 text-gray-600 font-black py-3 rounded-xl hover:bg-gray-200">Cancelar</button>
-                <button type="submit" disabled={procesando} className="flex-1 bg-[#0f3faf] text-white font-black py-3 rounded-xl hover:bg-blue-800 shadow-md">{procesando ? "Guardando..." : "Guardar Cambios"}</button>
+              <div className="flex justify-between items-center border-b pb-2">
+                <span className="text-xs font-bold text-gray-500 uppercase">Costo Unitario</span>
+                <span className="text-base font-black text-orange-600">${confirmacion.costo_unitario.toFixed(2)}</span>
               </div>
-            </form>
+              <div className="flex justify-between items-center border-b pb-2">
+                <span className="text-xs font-bold text-gray-500 uppercase">Nuevas a Ingresar</span>
+                <span className="text-lg font-black text-emerald-600">+{confirmacion.cantidad_nueva}</span>
+              </div>
+              <div className="flex justify-between items-center pt-1">
+                <span className="text-sm font-black text-[#0f3faf] uppercase tracking-wider">Nuevo Total</span>
+                <span className="text-2xl font-black text-[#0f3faf]">{confirmacion.stock_final}</span>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setConfirmacion(null)} 
+                disabled={procesando}
+                className="flex-1 bg-gray-100 text-gray-600 font-black py-4 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button 
+                onClick={confirmarGuardado} 
+                disabled={procesando}
+                className="flex-1 bg-[#0f3faf] text-white font-black py-4 rounded-xl hover:bg-blue-800 shadow-lg active:scale-95 transition-all"
+              >
+                {procesando ? "Guardando..." : "Sí, Confirmar"}
+              </button>
+            </div>
           </div>
         </div>
       )}
