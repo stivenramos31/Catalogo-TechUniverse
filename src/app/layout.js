@@ -73,7 +73,7 @@ export default function RootLayout({ children }) {
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdLocalBusiness) }}
         />
       </head>
-      <body className="bg-[#f5f7fa] text-[#111827] antialiased min-h-screen flex flex-col">
+      <body suppressHydrationWarning className="bg-[#f5f7fa] text-[#111827] antialiased min-h-screen flex flex-col">
         <CartProvider>
           {/* 🌐 Rastreador silencioso de visitas por IP */}
           <RastreadorVisitas />

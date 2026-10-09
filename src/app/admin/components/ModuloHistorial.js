@@ -7,6 +7,9 @@ import { jsPDF } from "jspdf";
 const DEPARTAMENTOS_SV = ["San Miguel", "San Salvador", "Santa Ana", "La Libertad", "Usulután", "Sonsonate", "La Unión", "La Paz", "Chalatenango", "Cuscatlán", "Ahuachapán", "Morazán", "San Vicente", "Cabañas"];
 
 export default function ModuloHistorial({ ventas, recargarDatos }) {
+  // ESTADO NUEVO: Lista dinámica para que la pantalla se actualice al instante
+  const [listaVentas, setListaVentas] = useState([]);
+  
   const [procesando, setProcesando] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
   
@@ -23,6 +26,21 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
   const [ticketAbierto, setTicketAbierto] = useState(null);
   const [detallesTicket, setDetallesTicket] = useState([]);
   const ticketRef = useRef(null);
+
+  // Sincronizar la base de datos con la pantalla
+  useEffect(() => {
+    if (ventas) {
+      setListaVentas(ventas);
+    }
+  }, [ventas]);
+
+  useEffect(() => {
+    const cargarConfig = async () => {
+      const { data } = await supabase.from('configuracion_tienda').select('logo_url').eq('id', 1).maybeSingle();
+      if(data?.logo_url) setLogoUrl(data.logo_url);
+    };
+    cargarConfig();
+  }, []);
 
   const obtenerFechaSegura = (venta) => venta.fecha_venta || venta.created_at || venta.fecha || null;
 
@@ -52,14 +70,6 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
     return (new Date() - d) / (1000 * 60 * 60);
   };
 
-  useEffect(() => {
-    const cargarConfig = async () => {
-      const { data } = await supabase.from('configuracion_tienda').select('logo_url').eq('id', 1).maybeSingle();
-      if(data?.logo_url) setLogoUrl(data.logo_url);
-    };
-    cargarConfig();
-  }, []);
-
   // --- LÓGICA DE EDICIÓN ---
   const abrirEdicion = (venta) => {
     setFormEdicion({
@@ -76,6 +86,8 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
     setProcesando(true);
     
     try {
+      const idParaActualizar = parseInt(ventaAEditar.id, 10);
+      
       const { data, error } = await supabase
         .from("ventas_operativas")
         .update({ 
@@ -83,16 +95,28 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
           cliente_telefono: formEdicion.cliente_telefono.trim(),
           departamento: formEdicion.departamento
         })
-        .eq("id", ventaAEditar.id)
+        .eq("id", idParaActualizar)
         .select();
 
       if (error) throw error;
-      if (!data || data.length === 0) throw new Error("No se pudo actualizar el registro en la base de datos.");
+      if (!data || data.length === 0) throw new Error("Supabase rechazó la actualización.");
+
+      // ¡AQUÍ ESTÁ LA MAGIA! Le decimos a React que redibuje la pantalla con los datos nuevos
+      setListaVentas(listaAnterior => listaAnterior.map(v => 
+        v.id === idParaActualizar 
+          ? { 
+              ...v, 
+              cliente_nombre: formEdicion.cliente_nombre.trim(), 
+              cliente_telefono: formEdicion.cliente_telefono.trim(), 
+              departamento: formEdicion.departamento 
+            } 
+          : v
+      ));
 
       alert("✅ Datos actualizados correctamente.");
       setVentaAEditar(null);
       
-      // Forzamos la recarga de datos del componente padre para refrescar la lista en pantalla
+      // Intentamos refrescar la base por detrás
       if (typeof recargarDatos === 'function') {
         recargarDatos();
       }
@@ -113,12 +137,17 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
     if (textoConfirmacion !== "CONFIRMAR") return;
     setProcesando(true);
     try {
+      const idNumerico = Number(ventaAAuditar.id);
       const { error } = await supabase
         .from("ventas_operativas")
         .update({ estado: 'Auditada' })
-        .eq("id", ventaAAuditar.id);
+        .eq("id", idNumerico);
 
       if (error) throw error;
+
+      // Actualizamos la pantalla instantáneamente
+      setListaVentas(lista => lista.map(v => v.id === idNumerico ? { ...v, estado: 'Auditada' } : v));
+
       alert("🔒 Venta auditada y bloqueada con éxito.");
       setVentaAAuditar(null);
       if (typeof recargarDatos === 'function') recargarDatos();
@@ -133,12 +162,17 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
   const confirmarAnular = async () => {
     setProcesando(true);
     try {
+      const idNumerico = Number(ventaAAnular.id);
       const { error } = await supabase
         .from("ventas_operativas")
         .update({ estado: 'Anulada' })
-        .eq("id", ventaAAnular.id);
+        .eq("id", idNumerico);
 
       if (error) throw error;
+
+      // Actualizamos la pantalla instantáneamente
+      setListaVentas(lista => lista.map(v => v.id === idNumerico ? { ...v, estado: 'Anulada' } : v));
+
       alert("🗑️ Venta anulada.");
       setVentaAAnular(null);
       if (typeof recargarDatos === 'function') recargarDatos();
@@ -200,7 +234,6 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
     return canvas;
   };
 
-  // DESCARGAS
   const descargarTicketImagen = async () => {
     if (!ticketRef.current) return;
     setProcesando(true);
@@ -250,12 +283,12 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
       </div>
 
       <div className="space-y-4">
-        {ventas.length === 0 ? (
+        {listaVentas.length === 0 ? (
           <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
             <p className="text-gray-500 font-bold">No hay ventas registradas aún.</p>
           </div>
         ) : (
-          ventas.sort((a, b) => new Date(obtenerFechaSegura(b)) - new Date(obtenerFechaSegura(a))).map((venta) => {
+          listaVentas.sort((a, b) => new Date(obtenerFechaSegura(b)) - new Date(obtenerFechaSegura(a))).map((venta) => {
             
             const horasPasadas = calcularHorasPasadas(venta);
             const esAutoAuditada = horasPasadas >= 72;
@@ -302,7 +335,7 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
                     <p className="text-xl font-black text-gray-900">${parseFloat(venta.ingreso_total_cliente || 0).toFixed(2)}</p>
                   </div>
                   
-                  {/* BOTONERA RESPONSIVA (Íconos en móvil, Texto en PC) */}
+                  {/* BOTONERA RESPONSIVA */}
                   <div className="flex items-center justify-end gap-1.5 w-full sm:w-auto">
                     
                     <button onClick={() => abrirTicket(venta)} disabled={procesando} title="Ticket" className="bg-gray-900 text-white font-black px-3 py-2 sm:px-4 sm:py-3 rounded-xl hover:bg-black transition-colors flex items-center justify-center gap-1 sm:gap-2 disabled:opacity-50">
@@ -340,7 +373,7 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
         )}
       </div>
 
-      {/* --- MODAL 1: EDICIÓN --- */}
+      {/* --- MODAL EDICIÓN --- */}
       {ventaAEditar && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl">
@@ -371,7 +404,7 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
         </div>
       )}
 
-      {/* --- MODAL 2: AUDITAR --- */}
+      {/* --- MODAL AUDITORÍA --- */}
       {ventaAAuditar && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden border-t-8 border-yellow-400">
@@ -398,7 +431,7 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
         </div>
       )}
 
-      {/* --- MODAL 3: ANULAR --- */}
+      {/* --- MODAL ANULAR --- */}
       {ventaAAnular && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-[2rem] w-full max-w-md shadow-2xl overflow-hidden border-t-8 border-red-500">
@@ -419,7 +452,7 @@ export default function ModuloHistorial({ ventas, recargarDatos }) {
         </div>
       )}
 
-      {/* --- MODAL 4: TICKET --- */}
+      {/* --- MODAL TICKET --- */}
       {ticketAbierto && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[100] flex items-center justify-center p-2 sm:p-4 animate-fade-in">
           <div className="w-full max-w-md flex flex-col max-h-[98vh]">
