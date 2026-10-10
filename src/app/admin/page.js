@@ -13,7 +13,6 @@ import ModuloPerfil from "./components/ModuloPerfil";
 import ModuloVisitas from "./components/ModuloVisitas";
 import ModuloOperaciones from "./components/ModuloOperaciones";
 
-// 👇 AQUÍ AGREGAMOS LA NUEVA PESTAÑA DE FINANZAS Y LOTES
 const PESTANAS_ADMIN = [
   { id: "productos", icono: "📦", texto: "Productos" },
   { id: "categorias", icono: "🏷️", texto: "Categorías" },
@@ -35,8 +34,19 @@ export default function AdminDashboard() {
   const [vistaActiva, setVistaActiva] = useState("productos");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
 
+  // --- MEMORIA PERSISTENTE DE PESTAÑAS ---
+  useEffect(() => {
+    // Al cargar la página, verificamos si el usuario tenía una pestaña guardada
+    const pestañaGuardada = localStorage.getItem("techuniverse_admin_tab");
+    if (pestañaGuardada) {
+      setVistaActiva(pestañaGuardada);
+    }
+  }, []);
+
   const cambiarVista = (nuevaVista) => {
     setVistaActiva(nuevaVista);
+    // Guardamos la elección en la memoria del navegador
+    localStorage.setItem("techuniverse_admin_tab", nuevaVista);
     setMenuMovilAbierto(false);
   };
 
@@ -134,6 +144,8 @@ export default function AdminDashboard() {
   const cerrarSesion = async () => {
     if (window.confirm("¿Seguro que deseas cerrar sesión?")) {
       await supabase.auth.signOut();
+      // Limpiamos la memoria al cerrar sesión
+      localStorage.removeItem("techuniverse_admin_tab");
       setSession(null);
     }
   };
@@ -207,7 +219,7 @@ export default function AdminDashboard() {
 
   return (
     <div className="h-dvh overflow-hidden bg-gray-100 flex flex-col md:flex-row relative">
-      {/* 📱 ENCABEZADO MÓVIL + BARRA RÁPIDA DE PESTAÑAS (Exclusivo Android / Móvil) */}
+      {/* 📱 ENCABEZADO MÓVIL */}
       <div className="md:hidden sticky top-0 z-30 bg-[#0f3faf] text-white shadow-md">
         <header className="px-3.5 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -271,7 +283,6 @@ export default function AdminDashboard() {
         </header>
       </div>
 
-      {/* Fondo oscuro al abrir el menú lateral en Android */}
       {menuMovilAbierto && (
         <div
           onClick={() => setMenuMovilAbierto(false)}
@@ -376,7 +387,7 @@ export default function AdminDashboard() {
         </div>
       </aside>
 
-      {/* Área Principal de Módulos con margen aprovechado en móvil */}
+      {/* Área Principal de Módulos */}
       <main className="flex-1 h-full overflow-y-auto p-2.5 sm:p-4 md:p-8">
         {vistaActiva === "productos" && (
           <ModuloProductos
@@ -400,7 +411,6 @@ export default function AdminDashboard() {
         {vistaActiva === "cupones" && <ModuloCupones />}
         {vistaActiva === "visitas" && <ModuloVisitas />}
         
-        {/* 👇 AQUÍ SE RENDERIZA EL NUEVO MÓDULO DE FINANZAS */}
         {vistaActiva === "operaciones" && (
           <ModuloOperaciones productos={productos} />
         )}

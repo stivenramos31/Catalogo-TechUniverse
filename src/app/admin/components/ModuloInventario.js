@@ -7,10 +7,11 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
   const [procesando, setProcesando] = useState(false);
   const [confirmacion, setConfirmacion] = useState(null);
   
-  // Referencia para el auto-scroll y focus del ingreso rápido
+  // ESTADO NUEVO: Para el buscador inteligente
+  const [busqueda, setBusqueda] = useState("");
+  
   const costoInputRef = useRef(null);
 
-  // --- DETECTOR INTELIGENTE DE IMÁGENES ---
   const obtenerImagen = (prod) => {
     if (prod.imagenes && Array.isArray(prod.imagenes) && prod.imagenes.length > 0) return prod.imagenes[0];
     if (typeof prod.imagenes === 'string' && prod.imagenes.startsWith('[')) {
@@ -19,28 +20,35 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
     return prod.imagen_principal || prod.imagen_url || prod.imagen || null;
   };
 
-  // 1. AGRUPAR LOTES POR PRODUCTO (Para vista de Inventario)
+  // 1. AGRUPAR LOTES
   const inventarioAgrupado = productos.map(prod => {
     const lotesActivos = lotes
       .filter(l => l.producto_id === prod.id && l.cantidad_disponible > 0)
       .sort((a, b) => new Date(a.fecha_ingreso) - new Date(b.fecha_ingreso));
     
     const stockTotal = lotesActivos.reduce((sum, l) => sum + l.cantidad_disponible, 0);
-    
     return { ...prod, stockTotal, lotes: lotesActivos };
   }).filter(p => p.stockTotal > 0);
 
-  // --- INGRESO RÁPIDO DESDE EL BOTÓN '+' ---
+  // 2. APLICAR BUSCADOR INTELIGENTE
+  const inventarioFiltrado = inventarioAgrupado.filter(prod => {
+    if (!busqueda) return true;
+    const termino = busqueda.toLowerCase();
+    return (
+      (prod.titulo && prod.titulo.toLowerCase().includes(termino)) ||
+      (prod.descripcion && prod.descripcion.toLowerCase().includes(termino)) ||
+      (String(prod.id).toLowerCase().includes(termino))
+    );
+  });
+
   const prepararIngresoRapido = (producto_id) => {
     setFormLote({ producto_id: String(producto_id), costo_unitario: "", cantidad: "", notas: "" });
     if (costoInputRef.current) {
       costoInputRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      // Pequeño retraso para asegurar que el scroll termine antes de enfocar
       setTimeout(() => costoInputRef.current.focus(), 300);
     }
   };
 
-  // 2. MANEJO DEL FORMULARIO Y CONFIRMACIÓN
   const iniciarRegistro = (e) => {
     e.preventDefault();
     if (!formLote.producto_id || !formLote.costo_unitario || !formLote.cantidad) return alert("Llena los campos obligatorios");
@@ -67,7 +75,7 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
         costo_unitario: confirmacion.costo_unitario,
         cantidad_inicial: confirmacion.cantidad_nueva,
         cantidad_disponible: confirmacion.cantidad_nueva,
-        notas: confirmacion.notas || null
+        proveedor_o_nota: confirmacion.notas || null
       }]);
 
       if (error) throw error;
@@ -75,7 +83,7 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
       setFormLote({ producto_id: "", costo_unitario: "", cantidad: "", notas: "" });
       setConfirmacion(null);
       recargarDatos();
-      alert("✅ Inversión y nuevo lote registrado correctamente.");
+      alert("✅ Inversión registrada correctamente.");
     } catch (error) {
       alert("Error: " + error.message);
     } finally {
@@ -86,7 +94,7 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
       
-      {/* COLUMNA IZQUIERDA: FORMULARIO DE INGRESO */}
+      {/* FORMULARIO */}
       <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 h-fit lg:col-span-1">
         <h3 className="font-black text-[#0f3faf] mb-6 text-xl flex items-center gap-2">
           <span>➕</span> Registrar Compra
@@ -146,27 +154,47 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
         </form>
       </div>
 
-      {/* COLUMNA DERECHA: LISTA DE INVENTARIO (FILAS) */}
-      <div className="lg:col-span-2">
-        <h3 className="font-black text-gray-800 mb-6 text-xl flex items-center gap-2 px-2">
-          <span>📦</span> Inventario Actual (FIFO)
-        </h3>
+      {/* LISTA Y BUSCADOR */}
+      <div className="lg:col-span-2 flex flex-col gap-4">
+        
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-2 mb-2">
+          <h3 className="font-black text-gray-800 text-xl flex items-center gap-2">
+            <span>📦</span> Inventario Actual (FIFO)
+          </h3>
+          
+          {/* BARRA DE BÚSQUEDA INTELIGENTE */}
+          <div className="relative w-full sm:w-64 shrink-0">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+            <input 
+              type="text" 
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              placeholder="Buscar producto, ID, detalle..." 
+              className="w-full border-2 border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm font-bold text-gray-800 outline-none focus:border-[#0f3faf] transition-colors"
+            />
+            {busqueda && (
+              <button onClick={() => setBusqueda("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-red-500 font-bold">
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
         
         <div className="space-y-4">
-          {inventarioAgrupado.length === 0 ? (
+          {inventarioFiltrado.length === 0 ? (
             <div className="text-center py-10 bg-gray-50 rounded-3xl border-2 border-dashed border-gray-200">
-              <p className="text-gray-500 font-bold">No hay inventario disponible.</p>
+              <p className="text-gray-500 font-bold">
+                {busqueda ? "No hay coincidencias para tu búsqueda." : "No hay inventario disponible."}
+              </p>
             </div>
           ) : (
-            inventarioAgrupado.map((prod) => {
+            inventarioFiltrado.map((prod) => {
               const imgUrl = obtenerImagen(prod);
               
               return (
               <div key={prod.id} className="bg-white rounded-2xl border shadow-sm overflow-hidden flex flex-col hover:border-blue-200 transition-colors">
                 
-                {/* CABECERA DE LA FILA DEL PRODUCTO */}
                 <div className="p-3 sm:p-4 flex items-center gap-2 sm:gap-4 bg-gray-50/50">
-                  {/* Miniatura Dinámica y Segura */}
                   <div className="w-12 h-12 sm:w-14 sm:h-14 bg-white rounded-xl border p-1 shrink-0 flex items-center justify-center">
                     {imgUrl ? (
                       <img src={imgUrl} alt={prod.titulo} className="w-full h-full object-contain rounded-lg" loading="lazy" />
@@ -175,19 +203,16 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
                     )}
                   </div>
                   
-                  {/* Título */}
                   <div className="flex-1 min-w-0">
                     <p className="font-black text-gray-900 text-sm sm:text-base leading-tight truncate">{prod.titulo}</p>
                     <p className="text-[9px] sm:text-[10px] text-gray-400 font-bold mt-1 uppercase truncate">ID: {prod.id}</p>
                   </div>
 
-                  {/* Stock Total Grande */}
                   <div className="shrink-0 text-center px-2 sm:px-4 border-l border-gray-200">
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Stock</p>
                     <p className="text-2xl sm:text-3xl font-black text-[#0f3faf] leading-none">{prod.stockTotal}</p>
                   </div>
 
-                  {/* BOTÓN + INGRESO RÁPIDO */}
                   <button
                     onClick={() => prepararIngresoRapido(prod.id)}
                     className="shrink-0 w-10 h-10 sm:w-12 sm:h-12 bg-[#0f3faf] text-white rounded-full flex items-center justify-center font-black text-2xl hover:bg-blue-800 transition-transform shadow-md hover:scale-105 active:scale-95 ml-1"
@@ -197,7 +222,6 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
                   </button>
                 </div>
 
-                {/* DESGLOSE DE LOTES (Mini-tabla) */}
                 <div className="bg-white px-4 pb-4 pt-2">
                   <p className="text-[9px] font-bold text-gray-400 uppercase mb-2 ml-1">Lotes Activos (Se venden en este orden 👇)</p>
                   <div className="space-y-2">
@@ -222,11 +246,10 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
         </div>
       </div>
 
-      {/* --- MODAL DE CONFIRMACIÓN DE INGRESO --- */}
+      {/* MODAL DE CONFIRMACIÓN (Se mantiene igual) */}
       {confirmacion && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4 animate-fade-in backdrop-blur-sm">
           <div className="bg-white rounded-3xl p-6 sm:p-8 w-full max-w-sm shadow-2xl relative">
-            
             <div className="text-center mb-6">
               <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4 border-4 border-white shadow-sm">
                 <span className="text-3xl">📦</span>
@@ -234,7 +257,6 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
               <h2 className="text-2xl font-black text-gray-900 leading-tight mb-2">Confirmar Ingreso</h2>
               <p className="text-sm text-gray-600 font-bold">{confirmacion.producto.titulo}</p>
             </div>
-
             <div className="bg-gray-50 rounded-2xl p-4 space-y-3 mb-6 border border-gray-100">
               <div className="flex justify-between items-center border-b pb-2">
                 <span className="text-xs font-bold text-gray-500 uppercase">Stock Actual</span>
@@ -253,20 +275,11 @@ export default function ModuloInventario({ productos, lotes, recargarDatos }) {
                 <span className="text-2xl font-black text-[#0f3faf]">{confirmacion.stock_final}</span>
               </div>
             </div>
-
             <div className="flex gap-3">
-              <button 
-                onClick={() => setConfirmacion(null)} 
-                disabled={procesando}
-                className="flex-1 bg-gray-100 text-gray-600 font-black py-4 rounded-xl hover:bg-gray-200 transition-colors"
-              >
+              <button onClick={() => setConfirmacion(null)} disabled={procesando} className="flex-1 bg-gray-100 text-gray-600 font-black py-4 rounded-xl hover:bg-gray-200 transition-colors">
                 Cancelar
               </button>
-              <button 
-                onClick={confirmarGuardado} 
-                disabled={procesando}
-                className="flex-1 bg-[#0f3faf] text-white font-black py-4 rounded-xl hover:bg-blue-800 shadow-lg active:scale-95 transition-all"
-              >
+              <button onClick={confirmarGuardado} disabled={procesando} className="flex-1 bg-[#0f3faf] text-white font-black py-4 rounded-xl hover:bg-blue-800 shadow-lg active:scale-95 transition-all">
                 {procesando ? "Guardando..." : "Sí, Confirmar"}
               </button>
             </div>
