@@ -80,7 +80,8 @@ export default function ModuloOfertas({ productos }) {
     try {
       const precioNum = parseFloat(nuevaOferta.precio_promocion);
       const datos = {
-        producto_id: Number(nuevaOferta.producto_id),
+        // Corrección: El ID se envía tal cual (como string/UUID), sin Number()
+        producto_id: nuevaOferta.producto_id, 
         precio_promocion: precioNum,
         stock_promocion: parseInt(nuevaOferta.stock_promocion) || 1,
         fecha_inicio: new Date(nuevaOferta.fecha_inicio).toISOString(),
@@ -136,7 +137,7 @@ export default function ModuloOfertas({ productos }) {
         </button>
       </div>
 
-      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL (Con foto w-20 h-20 fija y sin desbordamiento) */}
+      {/* 📱 VISTA EN TARJETAS PARA ANDROID / MÓVIL */}
       <div className="md:hidden space-y-3">
         {ofertas.length === 0 && (
           <p className="text-center p-8 text-gray-400 font-bold text-sm border rounded-xl">
