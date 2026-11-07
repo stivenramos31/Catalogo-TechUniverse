@@ -96,10 +96,14 @@ export default function LoginPage() {
       }
       setCargando(false);
     } else if (data.session) {
-      // Éxito: Limpiamos el historial de errores y forzamos recarga al admin
+      // Éxito: Limpiamos el historial de errores
       localStorage.removeItem("admin_intentos");
       localStorage.removeItem("admin_bloqueado_hasta");
-      window.location.href = "/admin"; 
+      
+      // Damos 300ms para asegurar que la cookie de Supabase SSR se escriba en producción
+      setTimeout(() => {
+        window.location.href = "/admin"; 
+      }, 300);
     }
   };
 
