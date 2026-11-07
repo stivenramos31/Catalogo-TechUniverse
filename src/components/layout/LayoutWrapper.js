@@ -3,14 +3,17 @@
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Header from './Header';
+import Footer from './Footer'; // Movimos la importación del Footer aquí
 
 export default function LayoutWrapper({ children }) {
   const pathname = usePathname();
-  const esAdmin = pathname?.startsWith('/admin');
+  
+  // Condición unificada: Ocultar diseño público en panel y en el login
+  const esRutaPrivada = pathname?.startsWith('/admin') || pathname?.startsWith('/login');
 
   return (
     <div className="flex flex-col min-h-screen">
-      {!esAdmin && (
+      {!esRutaPrivada && (
         <>
           <Header />
           {/* 📱 Barra de Navegación Rápida exclusiva para Android / Móvil (Debajo del Header) */}
@@ -44,6 +47,9 @@ export default function LayoutWrapper({ children }) {
       )}
 
       <main className="flex-1 flex flex-col">{children}</main>
+
+      {/* Renderizamos el Footer SOLO si NO estamos en una ruta privada */}
+      {!esRutaPrivada && <Footer />}
     </div>
   );
 }

@@ -9,6 +9,8 @@ import ModuloInventario from "./ModuloInventario";
 import ModuloCaja from "./ModuloCaja";
 import ModuloDashboard from "./ModuloDashboard";
 import ModuloHistorial from "./ModuloHistorial";
+// Importamos el nuevo módulo
+import ModuloGuias from "./ModuloGuias"; 
 
 export default function ModuloOperaciones({ productos }) {
   const [pestaña, setPestaña] = useState("ventas");
@@ -21,7 +23,6 @@ export default function ModuloOperaciones({ productos }) {
   const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => { 
-    // Detecta automáticamente si estás en Localhost o Vercel
     setBaseUrl(window.location.origin);
     cargarDatos(); 
   }, []);
@@ -67,18 +68,17 @@ export default function ModuloOperaciones({ productos }) {
     }
   };
 
-  // --- EXPORTACIÓN CALIDAD ALTA (Max ~1MB) ---
   const exportarTicketImagen = async () => {
     if (!ticketRef.current) return;
-    const canvas = await html2canvas(ticketRef.current, { scale: 4 }); // Escala alta para nitidez
-    const image = canvas.toDataURL("image/jpeg", 1.0); // Calidad Máxima JPEG
+    const canvas = await html2canvas(ticketRef.current, { scale: 4 }); 
+    const image = canvas.toDataURL("image/jpeg", 1.0); 
     const link = document.createElement("a"); link.href = image; link.download = `Ticket_${ticketActual.id}.jpg`; link.click();
   };
 
   const exportarTicketPDF = async () => {
     if (!ticketRef.current) return;
-    const canvas = await html2canvas(ticketRef.current, { scale: 4 }); // Letras súper definidas
-    const imgData = canvas.toDataURL("image/jpeg", 0.95); // Compresión ligera para peso ideal
+    const canvas = await html2canvas(ticketRef.current, { scale: 4 }); 
+    const imgData = canvas.toDataURL("image/jpeg", 0.95); 
     
     const pdfWidth = 80; 
     const imgProps = new jsPDF().getImageProperties(imgData);
@@ -95,11 +95,13 @@ export default function ModuloOperaciones({ productos }) {
         <h2 className="font-black text-2xl sm:text-3xl text-gray-900 tracking-tight">Caja, Finanzas y Operaciones</h2>
       </div>
 
+      {/* AÑADIDO: Pestaña "Etiquetas" */}
       <div className="flex flex-wrap gap-2 bg-gray-100/80 p-1.5 rounded-2xl mb-8">
-        <button onClick={() => setPestaña("lotes")} className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "lotes" ? "bg-white text-[#0f3faf] shadow-sm" : "text-gray-500"}`}>📦 Inventario</button>
-        <button onClick={() => setPestaña("ventas")} className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "ventas" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500"}`}>🛒 POS (Caja)</button>
-        <button onClick={() => setPestaña("estadisticas")} className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "estadisticas" ? "bg-white text-[#0f3faf] shadow-sm" : "text-gray-500"}`}>📈 Dashboard</button>
-        <button onClick={() => setPestaña("historial")} className={`flex-1 py-2.5 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "historial" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>🧾 Historial</button>
+        <button onClick={() => setPestaña("lotes")} className={`flex-1 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "lotes" ? "bg-white text-[#0f3faf] shadow-sm" : "text-gray-500"}`}>📦 Inventario</button>
+        <button onClick={() => setPestaña("ventas")} className={`flex-1 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "ventas" ? "bg-white text-emerald-600 shadow-sm" : "text-gray-500"}`}>🛒 POS (Caja)</button>
+        <button onClick={() => setPestaña("guias")} className={`flex-1 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "guias" ? "bg-white text-orange-600 shadow-sm" : "text-gray-500"}`}>🏷️ Etiquetas</button>
+        <button onClick={() => setPestaña("estadisticas")} className={`flex-1 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "estadisticas" ? "bg-white text-[#0f3faf] shadow-sm" : "text-gray-500"}`}>📈 Dashboard</button>
+        <button onClick={() => setPestaña("historial")} className={`flex-1 py-2.5 px-2 rounded-xl text-xs sm:text-sm font-black transition-all ${pestaña === "historial" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}>🧾 Historial</button>
       </div>
 
       {cargando ? (
@@ -108,21 +110,20 @@ export default function ModuloOperaciones({ productos }) {
         <>
           {pestaña === "lotes" && <ModuloInventario productos={productos} lotes={lotes} recargarDatos={cargarDatos} />}
           {pestaña === "ventas" && <ModuloCaja productos={productos} lotes={lotes} recargarDatos={cargarDatos} onTicketGenerado={prepararTicket} />}
+          {pestaña === "guias" && <ModuloGuias productos={productos} lotes={lotes} />}
           {pestaña === "estadisticas" && <ModuloDashboard ventas={ventas} lotes={lotes} />}
           {pestaña === "historial" && <ModuloHistorial ventas={ventas} productos={productos} onVerTicket={prepararTicket} recargarDatos={cargarDatos} />}
         </>
       )}
 
-      {/* --- MODAL DEL TICKET GENERADOR --- */}
+      {/* --- MODAL DEL TICKET GENERADOR DE VENTAS (SE MANTIENE INTACTO) --- */}
       {ticketActual && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl">
             <div className="bg-gray-200 p-8 flex justify-center items-start overflow-y-auto w-full md:w-1/2">
               
-              {/* ÁREA DE IMPRESIÓN DEL TICKET (Diseño Ajustado) */}
               <div ref={ticketRef} className="bg-white shadow-sm p-6 pb-8 w-[80mm] min-w-[300px] shrink-0 mx-auto" style={{ fontFamily: "'Courier New', Courier, monospace", color: "#000" }}>
                 
-                {/* Cabecera */}
                 <div className="text-center mb-5">
                   <h1 className="text-2xl font-black mb-1 leading-none tracking-tighter">TECH UNIVERSE</h1>
                   <p className="text-[11px] font-bold">Tecnología y Herramientas</p>
@@ -130,7 +131,6 @@ export default function ModuloOperaciones({ productos }) {
                   <p className="text-[11px]">WhatsApp: +503 0000-0000</p>
                 </div>
                 
-                {/* Info Cliente */}
                 <div className="text-[11px] mb-3 border-b-2 border-dashed border-gray-400 pb-3">
                   <p><strong>Ticket ID:</strong> TKT-{ticketActual.id.toString().padStart(6, '0')}</p>
                   <p><strong>Fecha:</strong> {ticketActual.fecha}</p>
@@ -138,7 +138,6 @@ export default function ModuloOperaciones({ productos }) {
                   <p><strong>Destino:</strong> {ticketActual.departamento.toUpperCase()} ({ticketActual.tipo_entrega.toUpperCase()})</p>
                 </div>
                 
-                {/* Lista de Productos (Sin envíos mezclados) */}
                 <div className="text-[12px] font-bold pb-2">
                   <div className="flex justify-between mb-2 border-b border-black pb-1">
                     <span className="w-8">Cant</span>
@@ -154,7 +153,6 @@ export default function ModuloOperaciones({ productos }) {
                   ))}
                 </div>
                 
-                {/* Sección de Cargos y Envíos Separada */}
                 <div className="text-[12px] font-normal border-t border-dashed border-gray-400 pt-2 mb-3 space-y-1">
                   <div className="flex justify-between text-right">
                      <span className="flex-1 font-bold">SUBTOTAL:</span>
@@ -176,17 +174,14 @@ export default function ModuloOperaciones({ productos }) {
                   )}
                 </div>
                 
-                {/* Total Final */}
                 <div className="text-right text-[16px] font-black pt-2 border-t-2 border-black">
                   <p>TOTAL A PAGAR: ${ticketActual.total.toFixed(2)}</p>
                 </div>
                 
-                {/* QR y Despedida */}
                 <div className="text-center text-[11px] mt-6">
                   <p className="mb-4 font-black">¡GRACIAS POR SU COMPRA!</p>
                   <p className="mb-2">Escanee para ver su comprobante:</p>
                   <div className="flex justify-center mb-2">
-                    {/* El QR ahora usa baseUrl dinámico para que funcione en Localhost y Vercel */}
                     <QRCodeCanvas value={`${baseUrl}/comprobante/${ticketActual.id}`} size={120} level="H" />
                   </div>
                   <p className="mt-5 text-[9px] text-gray-500 font-bold uppercase">Este documento es para control interno.</p>
@@ -195,7 +190,6 @@ export default function ModuloOperaciones({ productos }) {
 
             </div>
             
-            {/* Panel de Botones */}
             <div className="p-6 md:p-10 w-full md:w-1/2 flex flex-col justify-center bg-gray-50 border-l">
               <h3 className="text-2xl font-black text-gray-900 mb-2">Tu Ticket está listo</h3>
               <p className="text-sm text-gray-500 mb-8">El PDF genera letras en Alta Resolución. El costo de envío ahora está separado visualmente del producto.</p>

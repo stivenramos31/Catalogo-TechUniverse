@@ -2,9 +2,8 @@ import './globals.css';
 import { CartProvider } from '../context/CartContext';
 import LayoutWrapper from '../components/layout/LayoutWrapper';
 import RastreadorVisitas from "../components/RastreadorVisitas";
-import Footer from "../components/layout/Footer";
+// ❌ Eliminamos la importación del Footer de aquí
 
-// 1. METADATOS GLOBALES PARA SEO LOCAL Y REDES SOCIALES
 export const metadata = {
   metadataBase: new URL("https://catalogo-tech-universe.vercel.app"),
   title: {
@@ -39,14 +38,9 @@ export const metadata = {
       "max-image-preview": "large",
     },
   },
-  // 2. AQUÍ PONDRÁS EL CÓDIGO DE GOOGLE SEARCH CONSOLE LUEGO
-  // verification: {
-  //   google: "TU_CODIGO_DE_VERIFICACION_AQUI",
-  // },
 };
 
 export default function RootLayout({ children }) {
-  // 3. ESTRUCTURA DE NEGOCIO LOCAL PARA GOOGLE MAPS Y BÚSQUEDAS (JSON-LD)
   const jsonLdLocalBusiness = {
     "@context": "https://schema.org",
     "@type": "ElectronicsStore",
@@ -60,14 +54,13 @@ export default function RootLayout({ children }) {
       addressCountry: "SV",
     },
     url: "https://catalogo-tech-universe.vercel.app",
-    telephone: "+50370000000", // Puedes cambiarlo por tu WhatsApp real
+    telephone: "+50370000000",
     priceRange: "$$",
   };
 
   return (
     <html lang="es">
       <head>
-        {/* Inyección invisible de datos estructurados para Google */}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdLocalBusiness) }}
@@ -75,13 +68,12 @@ export default function RootLayout({ children }) {
       </head>
       <body suppressHydrationWarning className="bg-[#f5f7fa] text-[#111827] antialiased min-h-screen flex flex-col">
         <CartProvider>
-          {/* 🌐 Rastreador silencioso de visitas por IP */}
           <RastreadorVisitas />
+          {/* El LayoutWrapper ahora tiene el control absoluto de mostrar u ocultar menú y footer */}
           <LayoutWrapper>
             <div className="flex-1 flex flex-col">
               {children}
             </div>
-            <Footer />
           </LayoutWrapper>
         </CartProvider>
       </body>

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { supabase } from "../../lib/supabase";
+import { useRouter } from "next/navigation";
 
 import ModuloProductos from "./components/ModuloProductos";
 import ModuloCategorias from "./components/ModuloCategorias";
@@ -25,30 +26,12 @@ const PESTANAS_ADMIN = [
 ];
 
 export default function AdminDashboard() {
+  const router = useRouter();
   const [session, setSession] = useState(null);
   const [cargandoAuth, setCargandoAuth] = useState(true);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [errorLogin, setErrorLogin] = useState("");
 
   const [vistaActiva, setVistaActiva] = useState("productos");
   const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
-
-  // --- MEMORIA PERSISTENTE DE PESTAÑAS ---
-  useEffect(() => {
-    // Al cargar la página, verificamos si el usuario tenía una pestaña guardada
-    const pestañaGuardada = localStorage.getItem("techuniverse_admin_tab");
-    if (pestañaGuardada) {
-      setVistaActiva(pestañaGuardada);
-    }
-  }, []);
-
-  const cambiarVista = (nuevaVista) => {
-    setVistaActiva(nuevaVista);
-    // Guardamos la elección en la memoria del navegador
-    localStorage.setItem("techuniverse_admin_tab", nuevaVista);
-    setMenuMovilAbierto(false);
-  };
 
   const [productos, setProductos] = useState([]);
   const [categorias, setCategorias] = useState([]);
@@ -58,15 +41,32 @@ export default function AdminDashboard() {
     avatar_url: "",
   });
 
+  // --- MEMORIA PERSISTENTE DE PESTAÑAS ---
+  useEffect(() => {
+    const pestañaGuardada = localStorage.getItem("techuniverse_admin_tab");
+    if (pestañaGuardada) {
+      setVistaActiva(pestañaGuardada);
+    }
+  }, []);
+
+  const cambiarVista = (nuevaVista) => {
+    setVistaActiva(nuevaVista);
+    localStorage.setItem("techuniverse_admin_tab", nuevaVista);
+    setMenuMovilAbierto(false);
+  };
+
   useEffect(() => {
     const verificarSesion = async () => {
-      const {
-        data: { session: sesionActual },
-      } = await supabase.auth.getSession();
-      setSession(sesionActual);
-      if (sesionActual) {
-        await cargarDatosGrupales(sesionActual.user.id);
+      const { data: { session: sesionActual } } = await supabase.auth.getSession();
+      
+      if (!sesionActual) {
+        // Redirigir si alguien burla el middleware y la sesión cliente falla
+        router.push("/login");
+        return;
       }
+      
+      setSession(sesionActual);
+      await cargarDatosGrupales(sesionActual.user.id);
       setCargandoAuth(false);
     };
 
@@ -74,8 +74,10 @@ export default function AdminDashboard() {
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setSession(session);
-        if (session) {
+        if (!session) {
+          router.push("/login");
+        } else {
+          setSession(session);
           cargarDatosGrupales(session.user.id);
         }
       }
@@ -84,7 +86,7 @@ export default function AdminDashboard() {
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [router]);
 
   const cargarDatosGrupales = async (userId = session?.user?.id) => {
     const { data: cats } = await supabase
@@ -99,13 +101,10 @@ export default function AdminDashboard() {
       .order("id", { ascending: false });
     if (prods) setProductos(prods);
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { data: { user } } = await supabase.auth.getUser();
     const meta = user?.user_metadata || {};
 
-    let nombreGuardado =
-      meta.nombre_mostrar || meta.full_name || "Administrador";
+    let nombreGuardado = meta.nombre_mostrar || meta.full_name || "Administrador";
     let fotoGuardada = meta.avatar_url || meta.foto_url || "";
 
     if (userId) {
@@ -116,8 +115,7 @@ export default function AdminDashboard() {
         .maybeSingle();
 
       if (perf) {
-        nombreGuardado =
-          perf.nombre_completo || perf.nombre_mostrar || nombreGuardado;
+        nombreGuardado = perf.nombre_completo || perf.nombre_mostrar || nombreGuardado;
         fotoGuardada = perf.avatar_url || perf.foto_url || fotoGuardada;
       }
     }
@@ -131,22 +129,12 @@ export default function AdminDashboard() {
     });
   };
 
-  const iniciarSesion = async (e) => {
-    e.preventDefault();
-    setErrorLogin("");
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-    if (error) setErrorLogin("Credenciales incorrectas o usuario no autorizado.");
-  };
-
   const cerrarSesion = async () => {
     if (window.confirm("¿Seguro que deseas cerrar sesión?")) {
       await supabase.auth.signOut();
-      // Limpiamos la memoria al cerrar sesión
       localStorage.removeItem("techuniverse_admin_tab");
-      setSession(null);
+      // Importante forzar el cambio por href para que se limpie la cookie de servidor
+      window.location.href = "/login";
     }
   };
 
@@ -158,64 +146,8 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!session) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-[#0a256e] to-[#0f3faf] flex items-center justify-center p-4">
-        <div className="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl">
-          <div className="text-center mb-8">
-            <span className="text-5xl block mb-2">💻 🛠️</span>
-            <h1 className="text-2xl font-black text-gray-900">TECH UNIVERSE</h1>
-            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">
-              Acceso Exclusivo Superadmin
-            </p>
-          </div>
-
-          {errorLogin && (
-            <div className="bg-red-50 border border-red-200 text-red-600 text-xs font-bold p-3 rounded-xl mb-4 text-center">
-              {errorLogin}
-            </div>
-          )}
-
-          <form onSubmit={iniciarSesion} className="space-y-4">
-            <div>
-              <label className="block text-xs font-black text-gray-700 uppercase mb-1">
-                Correo Electrónico
-              </label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full border-2 rounded-xl px-4 py-3 outline-none focus:border-[#0f3faf] font-medium"
-                placeholder="admin@techuniverse.com"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-black text-gray-700 uppercase mb-1">
-                Contraseña
-              </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full border-2 rounded-xl px-4 py-3 outline-none focus:border-[#0f3faf] font-medium"
-                placeholder="••••••••"
-              />
-            </div>
-
-            <button
-              type="submit"
-              className="w-full bg-[#0f3faf] hover:bg-blue-800 text-white font-black py-3.5 rounded-xl transition-colors shadow-lg shadow-blue-200 mt-2 cursor-pointer"
-            >
-              Ingresar al Panel
-            </button>
-          </form>
-        </div>
-      </div>
-    );
-  }
+  // Si no hay sesión (porque está terminando de redirigir), retorna nulo para no mostrar errores
+  if (!session) return null;
 
   return (
     <div className="h-dvh overflow-hidden bg-gray-100 flex flex-col md:flex-row relative">
@@ -229,18 +161,8 @@ export default function AdminDashboard() {
               className="p-2 rounded-xl bg-blue-800 hover:bg-blue-700 text-white focus:outline-none active:scale-95 transition-transform"
               aria-label="Abrir menú"
             >
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2.5"
-                  d="M4 6h16M4 12h16M4 18h16"
-                />
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h16" />
               </svg>
             </button>
             <span className="font-black text-xs sm:text-sm tracking-wide uppercase text-blue-100">
@@ -253,9 +175,7 @@ export default function AdminDashboard() {
             onClick={() => cambiarVista("perfil")}
             title="Abrir Configuración de Perfil"
             className={`flex items-center gap-2 min-w-0 p-1 rounded-2xl transition-all active:scale-95 ${
-              vistaActiva === "perfil"
-                ? "bg-white/20 ring-2 ring-white"
-                : "hover:bg-blue-800/60"
+              vistaActiva === "perfil" ? "bg-white/20 ring-2 ring-white" : "hover:bg-blue-800/60"
             }`}
           >
             <div className="text-right min-w-0">
@@ -268,11 +188,7 @@ export default function AdminDashboard() {
             </div>
             <div className="relative flex-shrink-0">
               {perfil?.avatar_url ? (
-                <img
-                  src={perfil.avatar_url}
-                  alt="Avatar"
-                  className="w-8 h-8 rounded-full object-cover border-2 border-white bg-white"
-                />
+                <img src={perfil.avatar_url} alt="Avatar" className="w-8 h-8 rounded-full object-cover border-2 border-white bg-white" />
               ) : (
                 <div className="w-8 h-8 rounded-full border-2 border-white bg-blue-900 flex items-center justify-center text-base">
                   👨‍💻
@@ -284,15 +200,11 @@ export default function AdminDashboard() {
       </div>
 
       {menuMovilAbierto && (
-        <div
-          onClick={() => setMenuMovilAbierto(false)}
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-fade-in"
-        />
+        <div onClick={() => setMenuMovilAbierto(false)} className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden animate-fade-in" />
       )}
 
       {/* 💻📱 BARRA LATERAL */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 h-dvh bg-[#0f3faf] text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 flex-shrink-0 ${
+      <aside className={`fixed inset-y-0 left-0 z-50 w-72 h-dvh bg-[#0f3faf] text-white flex flex-col shadow-2xl transform transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 flex-shrink-0 ${
           menuMovilAbierto ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -302,9 +214,7 @@ export default function AdminDashboard() {
             onClick={() => cambiarVista("perfil")}
             title="Ir a Configuración y Contactos"
             className={`flex items-center gap-3 min-w-0 flex-1 text-left p-2 rounded-2xl transition-all group cursor-pointer ${
-              vistaActiva === "perfil"
-                ? "bg-white text-[#0f3faf] shadow-md"
-                : "hover:bg-blue-800/70 text-white"
+              vistaActiva === "perfil" ? "bg-white text-[#0f3faf] shadow-md" : "hover:bg-blue-800/70 text-white"
             }`}
           >
             <div className="relative flex-shrink-0">
@@ -330,11 +240,8 @@ export default function AdminDashboard() {
               <h2 className="font-black text-base truncate leading-tight">
                 {perfil?.nombre_completo || "Administrador"}
               </h2>
-              <span
-                className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold inline-block mt-1 ${
-                  vistaActiva === "perfil"
-                    ? "bg-blue-100 text-[#0f3faf]"
-                    : "bg-blue-800 text-blue-200 group-hover:bg-blue-700"
+              <span className={`text-[11px] px-2.5 py-0.5 rounded-full font-bold inline-block mt-1 ${
+                  vistaActiva === "perfil" ? "bg-blue-100 text-[#0f3faf]" : "bg-blue-800 text-blue-200 group-hover:bg-blue-700"
                 }`}
               >
                 {perfil?.rol || "Superadmin"} • Configurar
@@ -358,9 +265,7 @@ export default function AdminDashboard() {
               type="button"
               onClick={() => cambiarVista(tab.id)}
               className={`flex items-center gap-3 px-4 py-3 w-full rounded-xl transition-all whitespace-nowrap cursor-pointer ${
-                vistaActiva === tab.id
-                  ? "bg-white text-[#0f3faf] font-black shadow-md"
-                  : "text-blue-100 hover:bg-blue-800"
+                vistaActiva === tab.id ? "bg-white text-[#0f3faf] font-black shadow-md" : "text-blue-100 hover:bg-blue-800"
               }`}
             >
               <span className="text-lg">{tab.icono}</span> {tab.texto}
@@ -390,37 +295,21 @@ export default function AdminDashboard() {
       {/* Área Principal de Módulos */}
       <main className="flex-1 h-full overflow-y-auto p-2.5 sm:p-4 md:p-8">
         {vistaActiva === "productos" && (
-          <ModuloProductos
-            productos={productos}
-            categorias={categorias}
-            recargarDatos={cargarDatosGrupales}
-          />
+          <ModuloProductos productos={productos} categorias={categorias} recargarDatos={cargarDatosGrupales} />
         )}
         {vistaActiva === "categorias" && (
-          <ModuloCategorias
-            categorias={categorias}
-            productos={productos}
-            recargarDatos={cargarDatosGrupales}
-          />
+          <ModuloCategorias categorias={categorias} productos={productos} recargarDatos={cargarDatosGrupales} />
         )}
         {vistaActiva === "ofertas" && <ModuloOfertas productos={productos} />}
         {vistaActiva === "cotizaciones" && <ModuloCotizaciones />}
-        {vistaActiva === "comentarios" && (
-          <ModuloComentarios productos={productos} />
-        )}
+        {vistaActiva === "comentarios" && <ModuloComentarios productos={productos} />}
         {vistaActiva === "cupones" && <ModuloCupones />}
         {vistaActiva === "visitas" && <ModuloVisitas />}
         
-        {vistaActiva === "operaciones" && (
-          <ModuloOperaciones productos={productos} />
-        )}
+        {vistaActiva === "operaciones" && <ModuloOperaciones productos={productos} />}
 
         {vistaActiva === "perfil" && (
-          <ModuloPerfil
-            session={session}
-            perfil={perfil}
-            actualizarPerfilLocal={setPerfil}
-          />
+          <ModuloPerfil session={session} perfil={perfil} actualizarPerfilLocal={setPerfil} />
         )}
       </main>
     </div>

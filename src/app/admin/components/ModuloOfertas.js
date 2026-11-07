@@ -469,4 +469,4 @@ export default function ModuloOfertas({ productos }) {
       )}
     </div>
   );
-}
+} 
