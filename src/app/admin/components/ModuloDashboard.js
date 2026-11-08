@@ -93,13 +93,17 @@ export default function ModuloDashboard({ ventas, lotes, perfil }) {
     return fechaVenta >= fechaInicioFiltro;
   });
 
+
   // --- CÁLCULOS FINANCIEROS (Basados en el filtro seleccionado) ---
-  const ingresoBrutoTotal = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.ingreso_total_cliente || 0), 0);
+  const ingresoCobrado = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.ingreso_total_cliente || 0), 0);
   const costoMercanciaVendida = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.costo_total_productos || 0), 0);
   const gastosLogistica = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.costo_envio_transporte || 0), 0);
   const comisionesMetodosPago = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.comision_metodo_pago || 0), 0);
   const totalDescuentos = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.descuento || 0), 0);
   const gananciaNetaTotal = ventasFiltradas.reduce((acc, v) => acc + parseFloat(v.ganancia_neta_limpia || 0), 0);
+  
+  // ARREGLO CONTABLE: Sumar el descuento para presentar las ventas brutas reales en el P&L
+  const ingresoBrutoTotal = ingresoCobrado + totalDescuentos;
   
   const margenGanancia = ingresoBrutoTotal > 0 ? ((gananciaNetaTotal / ingresoBrutoTotal) * 100).toFixed(1) : 0;
   

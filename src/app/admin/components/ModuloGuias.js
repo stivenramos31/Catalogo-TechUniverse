@@ -49,6 +49,10 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
   const [guiaSeleccionada, setGuiaSeleccionada] = useState(null); 
   const [textoConfirmacion, setTextoConfirmacion] = useState("");
 
+  // Estado para el modo edición
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [datosEdicion, setDatosEdicion] = useState(null);
+
   const [busquedaDistrito, setBusquedaDistrito] = useState("");
   const [desplegarDistritos, setDesplegarDistritos] = useState(false);
   const [busquedaProducto, setBusquedaProducto] = useState("");
@@ -104,40 +108,56 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
     setCargandoHistorial(false);
   };
 
-  const handleTelefonoChange = (e) => {
+  const handleTelefonoChange = (e, esEdicion = false) => {
     let valor = e.target.value.replace(/^\+?503\s*/, '').replace(/\D/g, '');
     if (valor.length > 8) valor = valor.slice(0, 8);
     if (valor.length > 4) valor = `${valor.slice(0, 4)}-${valor.slice(4)}`;
-    setDatosEnvio(prev => ({ ...prev, telefono: valor }));
+    
+    if (esEdicion) {
+      setDatosEdicion(prev => ({ ...prev, telefono: valor }));
+    } else {
+      setDatosEnvio(prev => ({ ...prev, telefono: valor }));
+    }
   };
 
-  const handleChange = (e) => {
+  const handleChange = (e, esEdicion = false) => {
     const { name, value } = e.target;
-    setDatosEnvio(prev => {
-      const nuevosDatos = { ...prev, [name]: value };
-      
-      // Resetea distrito si cambias departamento
-      if (name === "departamento") {
-        nuevosDatos.distrito = "";
-        setBusquedaDistrito("");
-        setDesplegarDistritos(false);
-      }
-      
-      // Limpia la hora si el método de envío deja de ser "Personal"
-      if (name === "metodoEnvio" && value !== "Personal") {
-        nuevosDatos.horaEntrega = "";
-      }
-      
-      return nuevosDatos;
-    });
+    
+    if (esEdicion) {
+      setDatosEdicion(prev => {
+        const nuevosDatos = { ...prev, [name]: value };
+        if (name === "departamento") nuevosDatos.distrito = "";
+        if (name === "metodo_envio" && value !== "Personal") nuevosDatos.hora_entrega = null;
+        return nuevosDatos;
+      });
+    } else {
+      setDatosEnvio(prev => {
+        const nuevosDatos = { ...prev, [name]: value };
+        
+        // Resetea distrito si cambias departamento
+        if (name === "departamento") {
+          nuevosDatos.distrito = "";
+          setBusquedaDistrito("");
+          setDesplegarDistritos(false);
+        }
+        
+        // Limpia la hora si el método de envío deja de ser "Personal"
+        if (name === "metodoEnvio" && value !== "Personal") {
+          nuevosDatos.horaEntrega = "";
+        }
+        
+        return nuevosDatos;
+      });
+    }
   };
 
   const distritosDisponibles = useMemo(() => {
-    if (!datosEnvio.departamento) return [];
-    const lista = DISTRITOS_POR_DEPARTAMENTO[datosEnvio.departamento] || [];
+    const depto = modoEdicion ? datosEdicion?.departamento : datosEnvio.departamento;
+    if (!depto) return [];
+    const lista = DISTRITOS_POR_DEPARTAMENTO[depto] || [];
     if (!busquedaDistrito) return lista;
     return lista.filter(d => d.toLowerCase().includes(busquedaDistrito.toLowerCase()));
-  }, [datosEnvio.departamento, busquedaDistrito]);
+  }, [datosEnvio.departamento, datosEdicion?.departamento, busquedaDistrito, modoEdicion]);
 
   const limpiarFormulario = () => {
     if (window.confirm("¿Seguro que deseas borrar todos los datos del formulario?")) {
@@ -159,7 +179,7 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
     }, 100);
   };
 
-  // --- NUEVA LÓGICA DE ACTUALIZACIÓN ---
+  // --- LÓGICA DE ACTUALIZACIÓN, ELIMINACIÓN Y EDICIÓN ---
   const actualizarEstadoGuia = async (id, nuevoEstado) => {
     if (nuevoEstado === 'anulada' && textoConfirmacion !== "ANULAR") {
       return alert("Debes escribir ANULAR para confirmar el bloqueo.");
@@ -169,12 +189,74 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
       if (error) throw error;
       setTextoConfirmacion("");
       cargarHistorial();
-      setGuiaSeleccionada(null);
+      
+      // Actualizar el estado de la guía seleccionada para que el modal refleje el cambio
+      setGuiaSeleccionada(prev => ({ ...prev, estado: nuevoEstado }));
       alert(`Guía actualizada a ${nuevoEstado}`);
     } catch (e) {
       alert("Error actualizando: " + e.message);
     }
   };
+
+  const eliminarGuia = async (id) => {
+    if (textoConfirmacion !== "ELIMINAR") {
+      return alert("Debes escribir ELIMINAR para confirmar.");
+    }
+    if (!window.confirm("¿Estás completamente seguro de eliminar esta guía de forma permanente?")) return;
+
+    try {
+      const { error } = await supabase.from('guias_envio').delete().eq('id', id);
+      if (error) throw error;
+      setTextoConfirmacion("");
+      cargarHistorial();
+      setGuiaSeleccionada(null);
+      alert("Guía eliminada correctamente.");
+    } catch (e) {
+      alert("Error eliminando: " + e.message);
+    }
+  };
+
+  const guardarEdicion = async () => {
+    try {
+      const { error } = await supabase
+        .from('guias_envio')
+        .update({
+          nombre_cliente: datosEdicion.nombre_cliente,
+          telefono: datosEdicion.telefono,
+          departamento: datosEdicion.departamento,
+          distrito: datosEdicion.distrito,
+          direccion: datosEdicion.direccion,
+          referencia: datosEdicion.referencia,
+          coordenadas_gps: datosEdicion.coordenadas_gps,
+          paquete: datosEdicion.paquete,
+          metodo_envio: datosEdicion.metodo_envio,
+          instrucciones: datosEdicion.instrucciones,
+          fecha_entrega: datosEdicion.fecha_entrega || null,
+          hora_entrega: datosEdicion.hora_entrega || null
+        })
+        .eq('id', datosEdicion.id);
+        
+      if (error) throw error;
+      
+      alert("Guía actualizada correctamente.");
+      setGuiaSeleccionada(datosEdicion);
+      setModoEdicion(false);
+      cargarHistorial();
+    } catch (e) {
+      alert("Error al guardar cambios: " + e.message);
+    }
+  };
+
+  const iniciarEdicion = () => {
+    setDatosEdicion({ ...guiaSeleccionada });
+    setModoEdicion(true);
+  };
+
+  const cancelarEdicion = () => {
+    setModoEdicion(false);
+    setDatosEdicion(null);
+  };
+
 
   const registrarEnBaseDeDatos = async () => {
     setGuardando(true);
@@ -210,103 +292,145 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
     } 
   };
 
-  // --- IMPRESIÓN COMPRIMIDA JS PDF ---
-  const exportarEtiquetaPDF = async () => {
+  // --- GENERACIÓN DE IMAGEN/PDF SÚPER NÍTIDO Y DE LARGO DINÁMICO ---
+  const generarArchivoLocal = async (folio, nombreCliente, tipo) => {
+    if (!etiquetaRef.current) return;
+    
+    const originalTransform = etiquetaRef.current.style.transform;
+    etiquetaRef.current.style.transform = 'none';
+    
+    // Solución al recorte de imagen: Forzamos la altura completa del elemento
+    const canvas = await html2canvas(etiquetaRef.current, { 
+      scale: 4, 
+      useCORS: true, 
+      backgroundColor: "#ffffff",
+      windowWidth: etiquetaRef.current.scrollWidth,
+      windowHeight: etiquetaRef.current.scrollHeight
+    });
+    
+    etiquetaRef.current.style.transform = originalTransform;
+
+    const imgData = canvas.toDataURL("image/png"); // PNG para no perder calidad
+
+    if (tipo === 'imagen') {
+      const link = document.createElement("a");
+      link.href = imgData;
+      link.download = `TICKET_F${folio}_${nombreCliente.replace(/\s+/g, '_')}.png`;
+      link.click();
+    } else {
+      const pdfWidth = 76; // Ancho de ticketera estándar (76-80mm)
+      // Magia aquí: El largo se calcula proporcionalmente para NO aplastarlo
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width; 
+      
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [pdfWidth, pdfHeight] });
+      pdf.addImage(imgData, "PNG", 0, 0, pdfWidth, pdfHeight);
+      pdf.save(`Guia_F${folio}_${nombreCliente.replace(/\s+/g, '_')}.pdf`);
+    }
+  };
+
+  const exportarNuevaGuia = async (tipo) => {
     if (!etiquetaRef.current) return;
     const guiaActual = await registrarEnBaseDeDatos();
     if (!guiaActual) return; 
 
+    setGuardando(true);
     setTimeout(async () => {
-        const originalTransform = etiquetaRef.current.style.transform;
-        etiquetaRef.current.style.transform = 'none';
-        
-        // Aumentamos escala y pasamos a imagen comprimida
-        const canvas = await html2canvas(etiquetaRef.current, { scale: 3, useCORS: true, backgroundColor: "#ffffff" });
-        etiquetaRef.current.style.transform = originalTransform;
-
-        const imgData = canvas.toDataURL("image/jpeg", 0.70);
-        const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: [76, 110] }); // Ajustado a térmica aprox
-        pdf.addImage(imgData, "JPEG", 0, 0, 76, 110);
-        pdf.save(`Guia_F${guiaActual.folio}_${datosEnvio.nombre.replace(/\s+/g, '_')}.pdf`);
-        
-        setGuardando(false);
-        alert("✅ Guía guardada en el historial y PDF descargado.");
+      await generarArchivoLocal(guiaActual.folio, guiaActual.nombre_cliente, tipo);
+      setGuardando(false);
+      alert(`✅ Guía guardada en la base de datos y ${tipo === 'imagen' ? 'ticket en formato Imagen' : 'ticket en formato PDF'} descargado exitosamente.`);
     }, 500);
   };
 
   // --- ETIQUETA RENDERIZADA CON LETRAS GRANDES (Reutilizable para previa y modal) ---
-  const TicketRender = ({ datos, folioVisible }) => (
-    <div className="w-full flex justify-center overflow-hidden bg-gray-200 p-2 rounded border-2 border-dashed border-gray-300">
-      <div 
-        ref={etiquetaRef} 
-        className="bg-white flex flex-col relative shrink-0 shadow-sm origin-top" 
-        style={{ 
-          width: "72mm", // Ancho estándar térmica 80mm
-          minHeight: "110mm", 
-          fontFamily: "Arial, sans-serif", 
-          color: "#000",
-          transform: typeof window !== 'undefined' && window.innerWidth < 450 ? 'scale(0.85)' : 'scale(1)', 
-          transformOrigin: "top center"
-        }}
-      >
-        <div className="flex border-b-[3px] border-black">
-          <div className="w-1/3 border-r-[3px] border-black p-3 flex items-center justify-center bg-black text-white">
-              <h1 className="text-2xl font-black uppercase text-center leading-none tracking-tighter">{datos.metodo_envio || datos.metodoEnvio}</h1>
+  const TicketRender = ({ datos, folioVisible }) => {
+    const telefonoAMostrar = datos.telefono || "0000-0000";
+    // Ajustamos la lectura según si viene de datosEnvio (nueva) o base de datos (historial/edición)
+    const metodoEnvioVisual = datos.metodo_envio || datos.metodoEnvio;
+    const nombreVisual = datos.nombre_cliente || datos.nombre || "CLIENTE";
+    const direccionVisual = datos.direccion || "Dirección pendiente...";
+    const fechaEmisionVisual = datos.fechaEmision || datos.fecha_emision || fechaEmision;
+    
+    let fechaProgramadaVisual = 'A coordinar';
+    if (datos.fechaEntrega || datos.fecha_entrega) {
+       fechaProgramadaVisual = new Date(datos.fechaEntrega || datos.fecha_entrega).toLocaleDateString('es-SV');
+    }
+    const horaProgramadaVisual = datos.horaEntrega || datos.hora_entrega ? ` ${datos.horaEntrega || datos.hora_entrega}` : '';
+
+    return (
+      <div className="w-full flex justify-center overflow-hidden bg-gray-200 p-2 rounded border-2 border-dashed border-gray-300">
+        <div 
+          ref={etiquetaRef} 
+          className="bg-white flex flex-col relative shrink-0 shadow-sm origin-top" 
+          style={{ 
+            width: "72mm", // Ancho estándar térmica 80mm
+            minHeight: "110mm", 
+            fontFamily: "Arial, sans-serif", 
+            color: "#000",
+            transform: typeof window !== 'undefined' && window.innerWidth < 450 ? 'scale(0.85)' : 'scale(1)', 
+            transformOrigin: "top center"
+          }}
+        >
+          <div className="flex border-b-[3px] border-black">
+            <div className="w-1/3 border-r-[3px] border-black p-3 flex items-center justify-center bg-black text-white">
+                <h1 className="text-2xl font-black uppercase text-center leading-none tracking-tighter">{metodoEnvioVisual}</h1>
+            </div>
+            <div className="w-2/3 p-3 flex flex-col justify-center">
+                <p className="text-[10px] font-bold uppercase mb-1 tracking-wider">Remitente:</p>
+                <h2 className="text-base font-black leading-none mb-1">TECH UNIVERSE</h2>
+                <p className="text-[10px] font-bold">Tel: +503 7600-0000</p>
+            </div>
           </div>
-          <div className="w-2/3 p-3 flex flex-col justify-center">
-              <p className="text-[10px] font-bold uppercase mb-1 tracking-wider">Remitente:</p>
-              <h2 className="text-base font-black leading-none mb-1">TECH UNIVERSE</h2>
-              <p className="text-[10px] font-bold">Tel: +503 7600-0000</p>
+
+          <div className="p-3 border-b-[3px] border-black flex flex-col">
+            <p className="text-[11px] font-bold text-gray-700 uppercase tracking-widest mb-1">Entregar a:</p>
+            <h2 className="text-2xl font-black uppercase mb-3 leading-tight">{nombreVisual}</h2>
+            
+            <div className="border-[2px] border-black p-2 mb-3 bg-gray-50 shrink-0">
+                <p className="text-xl font-black uppercase text-center tracking-wide">{datos.departamento || "DEPARTAMENTO"}</p>
+                <p className="text-sm font-bold uppercase text-center border-t-2 border-black mt-2 pt-2">{datos.distrito || "DISTRITO"}</p>
+            </div>
+            
+            {/* AQUÍ ESTÁ EL ARREGLO: La dirección ahora puede crecer todo lo necesario */}
+            <p className="text-[13px] font-bold leading-snug whitespace-pre-wrap">{direccionVisual}</p>
+            
+            {(datos.referencia) && <p className="text-xs italic mt-2 text-gray-800 font-bold break-words"><strong>Ref:</strong> {datos.referencia}</p>}
+            {(datos.coordenadas_gps || datos.gps) && <p className="text-[11px] mt-2 border-t-2 border-dashed pt-1 font-bold tracking-widest break-words"><strong>GPS:</strong> ENLACE ADJUNTO</p>}
           </div>
-        </div>
 
-        <div className="flex-1 p-3 border-b-[3px] border-black flex flex-col justify-center">
-          <p className="text-[11px] font-bold text-gray-700 uppercase tracking-widest mb-1">Entregar a:</p>
-          <h2 className="text-2xl font-black uppercase mb-3 leading-tight">{datos.nombre_cliente || datos.nombre || "CLIENTE"}</h2>
-          
-          <div className="border-[2px] border-black p-2 mb-3 bg-gray-50">
-              <p className="text-xl font-black uppercase text-center tracking-wide">{datos.departamento || "DEPARTAMENTO"}</p>
-              <p className="text-sm font-bold uppercase text-center border-t-2 border-black mt-2 pt-2">{datos.distrito || "DISTRITO"}</p>
+          <div className="p-3 border-b-[3px] border-black flex justify-between shrink-0">
+              <div className="w-1/2 pr-2 border-r-2 border-black">
+                <p className="text-[10px] uppercase font-bold tracking-wider mb-1">Teléfono:</p>
+                <p className="text-lg font-black">{telefonoAMostrar}</p>
+              </div>
+              <div className="w-1/2 pl-2 text-right">
+                <p className="text-[10px] uppercase font-bold tracking-wider mb-1">Fecha:</p>
+                <p className="text-sm font-black leading-tight">
+                  {fechaProgramadaVisual}
+                  <br/>
+                  {horaProgramadaVisual}
+                </p>
+              </div>
           </div>
-          
-          <p className="text-sm font-bold leading-snug line-clamp-4">{datos.direccion || "Dirección pendiente..."}</p>
-          {(datos.referencia) && <p className="text-xs italic mt-2 text-gray-800 font-bold"><strong>Ref:</strong> {datos.referencia}</p>}
-          {(datos.coordenadas_gps || datos.gps) && <p className="text-[11px] mt-2 border-t-2 border-dashed pt-1 font-bold tracking-widest"><strong>GPS:</strong> ENLACE ADJUNTO</p>}
-        </div>
 
-        <div className="p-3 border-b-[3px] border-black flex justify-between">
-            <div className="w-1/2 pr-2 border-r-2 border-black">
-              <p className="text-[10px] uppercase font-bold tracking-wider mb-1">Teléfono:</p>
-              <p className="text-lg font-black">{datos.telefono || "0000-0000"}</p>
-            </div>
-            <div className="w-1/2 pl-2 text-right">
-              <p className="text-[10px] uppercase font-bold tracking-wider mb-1">Fecha:</p>
-              <p className="text-sm font-black leading-tight">
-                {datos.fechaEntrega || datos.fecha_entrega ? new Date(datos.fechaEntrega || datos.fecha_entrega).toLocaleDateString('es-SV') : 'A coordinar'} 
-                <br/>
-                {datos.horaEntrega || datos.hora_entrega ? ` ${datos.horaEntrega || datos.hora_entrega}` : ''}
-              </p>
-            </div>
-        </div>
+          <div className="p-3 border-b-[3px] border-black shrink-0">
+              <p className="text-xs uppercase leading-tight font-bold mb-1 break-words"><span className="text-gray-600">CONTENIDO:</span> {datos.paquete || "ACCESORIOS"}</p>
+              {(datos.instrucciones) && <p className="text-[11px] uppercase mt-1 text-red-700 font-black leading-tight tracking-wide break-words">NOTAS: {datos.instrucciones}</p>}
+          </div>
 
-        <div className="p-3 border-b-[3px] border-black">
-            <p className="text-xs uppercase leading-tight font-bold mb-1"><span className="text-gray-600">CONTENIDO:</span> {datos.paquete || "ACCESORIOS"}</p>
-            {(datos.instrucciones) && <p className="text-[11px] uppercase mt-1 text-red-700 font-black leading-tight tracking-wide">NOTAS: {datos.instrucciones}</p>}
-        </div>
-
-        <div className="p-3 flex items-center justify-between bg-gray-50">
-            <div className="flex flex-col items-center">
-              <QRCodeCanvas value={`TU-${datos.telefono?.replace('-','')}-F${folioVisible}`} size={55} level="M" />
-              <p className="text-[9px] mt-1 font-black font-mono">F-{folioVisible}</p>
-            </div>
-            <div className="text-right flex flex-col justify-end h-full pb-1">
-              <p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Emi: {datos.fechaEmision || datos.fecha_emision || fechaEmision}</p>
-              <p className="text-[11px] font-black tracking-widest uppercase">NO INCLUYE FACTURA</p>
-            </div>
+          <div className="p-3 flex items-center justify-between bg-gray-50 shrink-0">
+              <div className="flex flex-col items-center">
+                <QRCodeCanvas value={`TU-${telefonoAMostrar.replace('-','')}-F${folioVisible}`} size={55} level="M" />
+                <p className="text-[9px] mt-1 font-black font-mono">F-{folioVisible}</p>
+              </div>
+              <div className="text-right flex flex-col justify-end h-full pb-1">
+                <p className="text-[9px] uppercase font-bold text-gray-500 mb-1">Emi: {fechaEmisionVisual}</p>
+                <p className="text-[11px] font-black tracking-widest uppercase">NO INCLUYE FACTURA</p>
+              </div>
+          </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <div className="bg-white p-4 sm:p-6 rounded-2xl shadow-sm border border-gray-100">
@@ -487,9 +611,12 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
               <h4 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-4">Vista Previa Dinámica</h4>
               <TicketRender datos={datosEnvio} folioVisible={folioTemporal} />
 
-              <div className="w-full mt-6 space-y-3 z-10 relative">
-                 <button onClick={exportarEtiquetaPDF} disabled={guardando} className="w-full bg-gray-900 text-white font-black text-sm py-4 rounded-xl shadow-lg hover:bg-black transition-colors active:scale-95 flex items-center justify-center gap-2">
-                   {guardando ? "Guardando DB..." : "📄 Confirmar, Guardar y Bajar PDF"}
+              <div className="w-full mt-6 flex gap-2 z-10 relative">
+                 <button onClick={() => exportarNuevaGuia('imagen')} disabled={guardando} className="flex-1 bg-blue-600 text-white font-black text-sm py-4 rounded-xl shadow-lg hover:bg-blue-700 transition-colors active:scale-95">
+                   {guardando ? "⏳ Procesando..." : "🖼️ Generar Ticket en Imagen"}
+                 </button>
+                 <button onClick={() => exportarNuevaGuia('pdf')} disabled={guardando} className="flex-1 bg-gray-900 text-white font-black text-sm py-4 rounded-xl shadow-lg hover:bg-black transition-colors active:scale-95">
+                   {guardando ? "⏳ Procesando..." : "📄 Generar Ticket en PDF"}
                  </button>
               </div>
             </div>
@@ -535,27 +662,78 @@ export default function ModuloGuias({ productos = [], lotes = [] }) {
             </div>
           )}
 
-          {/* Modal de Gestión para Ticket Viejo */}
+          {/* Modal de Gestión para Ticket Viejo (con Edición, Eliminación y Descargas) */}
           {guiaSeleccionada && (
-            <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl flex flex-col md:flex-row w-full max-w-3xl max-h-[95vh] overflow-y-auto shadow-2xl">
-                <div className="w-full md:w-1/2 p-6 bg-gray-100 flex flex-col items-center justify-center border-r">
-                   <TicketRender datos={guiaSeleccionada} folioVisible={guiaSeleccionada.folio} />
+            <div className="fixed inset-0 bg-black/80 z-[150] flex items-center justify-center p-4 overflow-y-auto">
+              <div className="bg-white rounded-2xl flex flex-col md:flex-row w-full max-w-4xl max-h-[95vh] overflow-y-auto shadow-2xl my-auto">
+                <div className="w-full md:w-1/2 p-6 bg-gray-100 flex flex-col items-center justify-center border-r shrink-0">
+                   <TicketRender datos={modoEdicion ? datosEdicion : guiaSeleccionada} folioVisible={guiaSeleccionada.folio} />
                 </div>
-                <div className="w-full md:w-1/2 p-6 flex flex-col justify-center space-y-4">
-                   <h3 className="font-black text-xl mb-4 text-gray-900">Gestión de Folio F-{guiaSeleccionada.folio}</h3>
-                   
-                   <div className="flex gap-2">
-                     <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'enviada')} disabled={guiaSeleccionada.estado === 'enviada'} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors">Marcar Enviada</button>
-                     <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'pendiente')} disabled={guiaSeleccionada.estado === 'pendiente'} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors">A Pendiente</button>
+                
+                <div className="w-full md:w-1/2 p-6 flex flex-col justify-start space-y-4 overflow-y-auto shrink-0 relative">
+                   <div className="flex justify-between items-center border-b pb-2">
+                     <h3 className="font-black text-xl text-gray-900">Gestión de Folio F-{guiaSeleccionada.folio}</h3>
+                     {!modoEdicion && (
+                       <button onClick={iniciarEdicion} className="text-xs bg-gray-200 px-3 py-1 rounded hover:bg-gray-300 font-bold">✏️ Editar Info</button>
+                     )}
                    </div>
                    
-                   <div className="border-t-2 border-red-100 pt-4 mt-4">
-                     <p className="text-xs font-black text-red-600 uppercase mb-2">Zona de Bloqueo</p>
-                     <input type="text" placeholder="Escribe ANULAR para confirmar" value={textoConfirmacion} onChange={(e) => setTextoConfirmacion(e.target.value)} className="w-full border-2 border-red-200 rounded-xl px-3 py-3 text-sm mb-2 focus:border-red-600 outline-none font-bold" />
-                     <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'anulada')} disabled={guiaSeleccionada.estado === 'anulada'} className="w-full bg-red-600 hover:bg-red-700 text-white font-black py-3 rounded-xl disabled:opacity-50 transition-colors shadow-sm">BLOQUEAR / ANULAR GUÍA</button>
-                   </div>
-                   <button onClick={() => setGuiaSeleccionada(null)} className="w-full text-gray-500 font-bold mt-2 py-2 hover:bg-gray-100 rounded-xl transition-colors">Cerrar Ventana</button>
+                   {modoEdicion ? (
+                     <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200 flex flex-col gap-3">
+                       <h4 className="text-xs font-black text-yellow-800 uppercase">Modo Edición</h4>
+                       <input type="text" name="nombre_cliente" value={datosEdicion.nombre_cliente} onChange={(e) => handleChange(e, true)} placeholder="Nombre" className="w-full text-sm p-2 border rounded" />
+                       <input type="text" name="telefono" value={datosEdicion.telefono} onChange={(e) => handleTelefonoChange(e, true)} placeholder="Teléfono" className="w-full text-sm p-2 border rounded font-mono" />
+                       <select name="departamento" value={datosEdicion.departamento} onChange={(e) => handleChange(e, true)} className="w-full text-sm p-2 border rounded bg-white">
+                          <option value="">Depto...</option>{DEPARTAMENTOS.map(d => <option key={d} value={d}>{d}</option>)}
+                       </select>
+                       <div className="relative">
+                          <div onClick={() => setDesplegarDistritos(!desplegarDistritos)} className="w-full border rounded p-2 text-sm bg-white cursor-pointer">{datosEdicion.distrito || "Distrito..."}</div>
+                          {desplegarDistritos && (
+                            <div className="absolute top-full left-0 w-full mt-1 bg-white border shadow-xl z-20"><div className="p-1"><input type="text" placeholder="Buscar..." value={busquedaDistrito} onChange={(e) => setBusquedaDistrito(e.target.value)} className="w-full px-2 py-1 text-xs border" /></div><ul className="max-h-32 overflow-y-auto">{distritosDisponibles.map(dist => <li key={dist} onClick={() => { setDatosEdicion(p => ({...p, distrito: dist})); setDesplegarDistritos(false); }} className="px-3 py-1 text-sm hover:bg-gray-100 cursor-pointer">{dist}</li>)}</ul></div>
+                          )}
+                       </div>
+                       <textarea name="direccion" value={datosEdicion.direccion} onChange={(e) => handleChange(e, true)} placeholder="Dirección Exacta" className="w-full text-sm p-2 border rounded" rows="2" />
+                       <input type="text" name="paquete" value={datosEdicion.paquete} onChange={(e) => handleChange(e, true)} placeholder="Contenido" className="w-full text-sm p-2 border rounded" />
+                       
+                       <div className="flex gap-2 mt-2">
+                         <button onClick={guardarEdicion} className="flex-1 bg-blue-600 text-white font-bold py-2 rounded">Guardar</button>
+                         <button onClick={cancelarEdicion} className="flex-1 bg-gray-300 text-gray-800 font-bold py-2 rounded">Cancelar</button>
+                       </div>
+                     </div>
+                   ) : (
+                     <>
+                       {/* DESCARGAS */}
+                       <div className="flex gap-2 mb-2 bg-gray-50 p-2 rounded-xl border border-gray-200">
+                         <button onClick={() => generarArchivoLocal(guiaSeleccionada.folio, guiaSeleccionada.nombre_cliente, 'imagen')} className="flex-1 bg-white border shadow-sm text-gray-700 font-bold py-2 rounded-lg hover:bg-gray-100 text-xs">
+                           🖼️ Guardar Ticket (Imagen)
+                         </button>
+                         <button onClick={() => generarArchivoLocal(guiaSeleccionada.folio, guiaSeleccionada.nombre_cliente, 'pdf')} className="flex-1 bg-white border shadow-sm text-gray-700 font-bold py-2 rounded-lg hover:bg-gray-100 text-xs">
+                           📄 Guardar Ticket (PDF)
+                         </button>
+                       </div>
+
+                       {/* ESTADOS */}
+                       <div className="flex gap-2 mt-4">
+                         <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'enviada')} disabled={guiaSeleccionada.estado === 'enviada'} className="flex-1 bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors">Marcar Enviada</button>
+                         <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'pendiente')} disabled={guiaSeleccionada.estado === 'pendiente'} className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 rounded-xl disabled:opacity-50 transition-colors">A Pendiente</button>
+                       </div>
+                       
+                       {/* ZONA PELIGROSA: ANULAR O ELIMINAR */}
+                       <div className="border-t-2 border-red-100 pt-4 mt-6">
+                         <p className="text-xs font-black text-red-600 uppercase mb-2">Zona de Peligro</p>
+                         <input type="text" placeholder="Escribe ANULAR o ELIMINAR" value={textoConfirmacion} onChange={(e) => setTextoConfirmacion(e.target.value)} className="w-full border-2 border-red-200 rounded-xl px-3 py-3 text-sm mb-2 focus:border-red-600 outline-none font-bold" />
+                         
+                         <div className="flex gap-2">
+                           <button onClick={() => actualizarEstadoGuia(guiaSeleccionada.id, 'anulada')} disabled={guiaSeleccionada.estado === 'anulada' || textoConfirmacion !== 'ANULAR'} className="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-black py-2 rounded-xl disabled:opacity-50 transition-colors shadow-sm text-xs">ANULAR GUÍA</button>
+                           <button onClick={() => eliminarGuia(guiaSeleccionada.id)} disabled={textoConfirmacion !== 'ELIMINAR'} className="flex-1 bg-red-600 hover:bg-red-700 text-white font-black py-2 rounded-xl disabled:opacity-50 transition-colors shadow-sm text-xs">BORRAR PERMANENTE</button>
+                         </div>
+                       </div>
+                     </>
+                   )}
+
+                   {!modoEdicion && (
+                     <button onClick={() => setGuiaSeleccionada(null)} className="w-full text-gray-500 font-bold mt-4 py-2 hover:bg-gray-100 rounded-xl transition-colors">Cerrar Ventana</button>
+                   )}
                 </div>
               </div>
             </div>
