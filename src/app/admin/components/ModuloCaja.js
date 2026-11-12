@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { supabase } from "../../../lib/supabase";
 
 const DEPARTAMENTOS_SV = ["San Miguel", "San Salvador", "Santa Ana", "La Libertad", "Usulután", "Sonsonate", "La Unión", "La Paz", "Chalatenango", "Cuscatlán", "Ahuachapán", "Morazán", "San Vicente", "Cabañas"];
@@ -23,7 +23,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
   const [datosIngreso, setDatosIngreso] = useState({ cantidad: 1, precio: 0 });
   const [toastMensaje, setToastMensaje] = useState("");
 
-  // --- DETECTOR INTELIGENTE DE IMÁGENES ---
   const obtenerImagen = (prod) => {
     if (!prod) return null;
     if (prod.imagenes && Array.isArray(prod.imagenes) && prod.imagenes.length > 0) return prod.imagenes[0];
@@ -33,20 +32,26 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
     return prod.imagen_principal || prod.imagen_url || prod.imagen || null;
   };
 
-  const stockPorProducto = lotes.reduce((acc, lote) => {
-    acc[lote.producto_id] = (acc[lote.producto_id] || 0) + lote.cantidad_disponible;
-    return acc;
-  }, {});
+  const stockPorProducto = useMemo(() => {
+    return lotes.reduce((acc, lote) => {
+      acc[lote.producto_id] = (acc[lote.producto_id] || 0) + lote.cantidad_disponible;
+      return acc;
+    }, {});
+  }, [lotes]);
   
-  const productosConStock = productos.filter(p => stockPorProducto[p.id] > 0);
+  const productosConStock = useMemo(() => productos.filter(p => stockPorProducto[p.id] > 0), [productos, stockPorProducto]);
 
-  // --- CÁLCULOS DE CARA AL CLIENTE ---
+  // --- ⚡ CÁLCULOS AUDITADOS EN TIEMPO REAL ⚡ ---
+  
   const totalProductos = carrito.reduce((sum, item) => sum + (parseFloat(item.precio_unitario || 0) * parseInt(item.cantidad || 0)), 0);
   const envioCliente = parseFloat(formVenta.envio_cobrado_cliente || 0);
-  const descuentoAplicado = parseFloat(formVenta.descuento || 0);
+  
+  // Validación de descuento: No puede ser mayor al total de los productos
+  let descuentoAplicado = parseFloat(formVenta.descuento || 0);
+  if (descuentoAplicado > totalProductos) descuentoAplicado = totalProductos; 
+  
   const totalVentaCliente = (totalProductos - descuentoAplicado) + envioCliente; 
 
-  // --- CÁLCULOS INTERNOS REALES (AGENCIAS) ---
   let costoAgenciaFijo = 0;
   let comisionAgencia = 0;
   
@@ -57,13 +62,12 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
     costoAgenciaFijo = 1.50;
     comisionAgencia = totalVentaCliente * 0.03; // 3.0%
   } else {
-    // Normal / Retiro (Permitimos que el admin ponga un gasto manual si pagó un Uber, etc, sino es 0)
     costoAgenciaFijo = parseFloat(formVenta.costo_envio_transporte || 0);
     comisionAgencia = parseFloat(formVenta.comision_metodo_pago || 0);
   }
 
-  // --- CÁLCULO DEL COSTO REAL DE INVENTARIO (PRE-VENTA) ---
-  const calcularCostoMercancia = () => {
+  // FIFO Optimizado y memorizado para no sobrecargar el render
+  const costoRealInversion = useMemo(() => {
     let costoTotal = 0;
     for (let item of carrito) {
       const lotesDisponibles = lotes.filter(l => l.producto_id === item.producto_id && l.cantidad_disponible > 0).sort((a, b) => new Date(a.fecha_ingreso) - new Date(b.fecha_ingreso));
@@ -76,14 +80,12 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
       }
     }
     return costoTotal;
-  };
+  }, [carrito, lotes]);
   
-  const costoRealInversion = calcularCostoMercancia();
   const gananciaNetaReal = totalVentaCliente - costoAgenciaFijo - comisionAgencia - costoRealInversion;
 
   const manejarCambioVenta = (campo, valor) => {
     const nuevoForm = { ...formVenta, [campo]: valor };
-    // Si cambia de agencia, reseteamos los campos manuales para evitar confusiones
     if (campo === "tipo_entrega" && (valor === "Express" || valor === "Forza")) {
       nuevoForm.costo_envio_transporte = ""; 
       nuevoForm.comision_metodo_pago = "";
@@ -108,7 +110,7 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
     const cantidadYaEnCarrito = itemEnCarrito ? itemEnCarrito.cantidad : 0;
     const cantidadAñadir = parseInt(datosIngreso.cantidad) || 1;
 
-    if (cantidadYaEnCarrito + cantidadAñadir > stockMaximo) return alert(`⚠️ ¡Stock insuficiente!`);
+    if (cantidadYaEnCarrito + cantidadAñadir > stockMaximo) return alert(`⚠️ ¡Stock insuficiente físico! Solo hay ${stockMaximo} unidades.`);
 
     if (itemEnCarrito) {
       setCarrito(carrito.map(item => item.producto_id === prod.id ? { ...item, cantidad: item.cantidad + cantidadAñadir, precio_unitario: parseFloat(datosIngreso.precio) } : item));
@@ -131,18 +133,17 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
   const actualizarItemCarrito = (id_temp, campo, valor) => {
     if(campo === 'cantidad'){
       const item = carrito.find(i => i.id_temporal === id_temp);
-      if (parseInt(valor) > (stockPorProducto[item.producto_id] || 0)) return alert(`Error de stock físico.`);
+      if (parseInt(valor) > (stockPorProducto[item.producto_id] || 0)) return alert(`Error de stock físico. Max: ${stockPorProducto[item.producto_id]}`);
     }
     setCarrito(carrito.map(item => item.id_temporal === id_temp ? { ...item, [campo]: valor } : item));
   };
 
-  // --- LÓGICA DE LA CUENTA REGRESIVA (TIMER) ---
   useEffect(() => {
     let timer;
     if (iniciandoCuentaRegresiva && segundosRestantes > 0) {
       timer = setTimeout(() => setSegundosRestantes(prev => prev - 1), 1000);
     } else if (iniciandoCuentaRegresiva && segundosRestantes === 0) {
-      registrarVentaFinal(); // Cuando llega a 0, dispara a la base de datos
+      registrarVentaFinal(); 
     }
     return () => clearTimeout(timer);
   }, [iniciandoCuentaRegresiva, segundosRestantes]);
@@ -150,13 +151,10 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
   const abrirAnalisisRentabilidad = (e) => {
     e.preventDefault();
     if (carrito.length === 0) return alert("El carrito está vacío.");
-    
-    // Validación lógica: Si usas agencia, DEBES poner cuánto le cobras al cliente de envío (aunque sea $0)
     if ((formVenta.tipo_entrega === "Express" || formVenta.tipo_entrega === "Forza") && formVenta.envio_cobrado_cliente === "") {
       return alert("⚠ OBLIGATORIO: Ingresa cuánto le vas a cobrar al cliente por el envío, o pon 0 si es gratis para él.");
     }
-
-    setMostrarAnalisis(true); // Abrimos el modal de análisis real
+    setMostrarAnalisis(true); 
   };
 
   const cancelarTimer = () => {
@@ -164,7 +162,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
     setSegundosRestantes(3);
   };
 
-  // --- REGISTRO REAL EN LA BASE DE DATOS ---
   const registrarVentaFinal = async () => {
     setProcesando(true);
     setIniciandoCuentaRegresiva(false);
@@ -193,7 +190,7 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
           tipo_entrega: formVenta.tipo_entrega, 
           ingreso_total_cliente: totalVentaCliente, 
           envio_cobrado_cliente: envioCliente, 
-          descuento: descuentoAplicado,
+          descuento: descuentoAplicado, // Descuento verificado 
           costo_envio_transporte: costoAgenciaFijo, 
           comision_metodo_pago: comisionAgencia, 
           costo_total_productos: costoRealInversion, 
@@ -212,7 +209,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
         envio_cobrado: envioCliente, descuento: descuentoAplicado, total: totalVentaCliente, subtotal: totalProductos
       };
 
-      // Reseteo exitoso
       setCarrito([]);
       setFormVenta({ cliente_nombre: "", cliente_telefono: "", departamento: "San Miguel", tipo_entrega: "Normal", envio_cobrado_cliente: "", descuento: "", costo_envio_transporte: "", comision_metodo_pago: "", notas_internas: "" });
       setMostrarAnalisis(false);
@@ -234,7 +230,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in w-full relative">
       
-      {/* PANTALLA VERDE DE ÉXITO */}
       {ventaExitosa && (
         <div className="fixed inset-0 bg-emerald-600/95 z-[200] flex flex-col items-center justify-center text-white animate-fade-in">
           <div className="w-32 h-32 bg-white rounded-full flex items-center justify-center mb-6 animate-bounce">
@@ -252,7 +247,7 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
       )}
 
       {/* --- COLUMNA 1: BUSCADOR Y CARRITO --- */}
-      <div className="bg-gray-50 p-4 sm:p-6 rounded-3xl border border-gray-200 w-full overflow-hidden relative">
+      <div className="bg-gray-50 p-4 sm:p-6 rounded-3xl border border-gray-200 w-full overflow-hidden relative flex flex-col">
         <h3 className="font-black text-gray-800 mb-4 text-lg">🛍️ Buscar y Agregar</h3>
         <div className="mb-4 flex flex-col sm:flex-row gap-2 w-full">
           <select id="selectorProd" className="flex-1 min-w-0 w-full border-2 rounded-xl px-3 py-2 text-sm outline-none focus:border-emerald-500 bg-white truncate font-bold text-gray-700">
@@ -262,21 +257,13 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
           <button onClick={iniciarAgregar} className="bg-emerald-600 text-white font-black px-6 py-2 rounded-xl hover:bg-emerald-700 shadow-md transition-transform active:scale-95">Agregar</button>
         </div>
         
-        {/* LISTA DEL CARRITO CON IMÁGENES */}
-        <div className="space-y-3 min-h-[200px]">
+        <div className="space-y-3 flex-1 overflow-y-auto min-h-[200px] pb-4">
           {carrito.map((item, index) => (
             <div key={item.id_temporal} className="bg-white p-3 rounded-xl border shadow-sm flex items-center gap-3 w-full hover:border-emerald-200 transition-colors">
               <span className="font-black text-gray-300 text-xs">{index + 1}.</span>
-              
-              {/* Imagen del Producto en el Carrito */}
               <div className="w-12 h-12 bg-gray-50 rounded-lg border flex items-center justify-center shrink-0 overflow-hidden">
-                {item.imagen ? (
-                  <img src={item.imagen} alt={item.titulo} className="w-full h-full object-contain p-1" />
-                ) : (
-                  <span className="text-xl">📦</span>
-                )}
+                {item.imagen ? <img src={item.imagen} alt={item.titulo} className="w-full h-full object-contain p-1" /> : <span className="text-xl">📦</span>}
               </div>
-
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-black text-gray-800 truncate w-full">{item.titulo}</p>
                 <div className="flex flex-wrap gap-2 mt-2">
@@ -294,6 +281,16 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
             </div>
           ))}
         </div>
+
+        {/* INDICADOR DE MARGEN EN TIEMPO REAL */}
+        {carrito.length > 0 && (
+          <div className={`mt-4 p-3 border-2 rounded-2xl flex justify-between items-center transition-colors ${gananciaNetaReal > 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+            <span className="text-xs font-bold uppercase tracking-widest text-gray-600">Margen en vivo:</span>
+            <span className={`font-black ${gananciaNetaReal > 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+               {gananciaNetaReal > 0 ? `+ $${gananciaNetaReal.toFixed(2)}` : `- $${Math.abs(gananciaNetaReal).toFixed(2)}`}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* --- COLUMNA 2: DETALLES DE COBRO Y AGENCIAS --- */}
@@ -301,8 +298,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
         <h3 className="font-black text-gray-800 mb-4 text-lg">💰 Detalles de Cobro</h3>
         
         <form onSubmit={abrirAnalisisRentabilidad} className="space-y-4">
-          
-          {/* INFORMACIÓN DEL CLIENTE (Mejorada) */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3 rounded-2xl border">
             <div>
               <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">Cliente</label>
@@ -320,7 +315,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
             </div>
           </div>
           
-          {/* SELECTOR DE AGENCIAS (3 Opciones) */}
           <div className="bg-white p-1.5 rounded-xl border-2 flex flex-wrap sm:flex-nowrap gap-1 w-full relative overflow-hidden shadow-sm">
             <label className={`flex-1 text-center py-2.5 text-[11px] font-black rounded-lg cursor-pointer truncate transition-colors ${formVenta.tipo_entrega === "Normal" ? "bg-gray-800 text-white shadow-md" : "text-gray-500 hover:bg-gray-100"}`}>
               <input type="radio" name="tipo_entrega" value="Normal" checked={formVenta.tipo_entrega === "Normal"} onChange={(e) => manejarCambioVenta("tipo_entrega", e.target.value)} className="hidden" /> 
@@ -336,7 +330,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
             </label>
           </div>
 
-          {/* CAMPOS DE COBRO AL CLIENTE */}
           <div className="grid grid-cols-2 gap-3">
             <div className={`border p-3 rounded-2xl transition-colors ${(formVenta.tipo_entrega === "Express" || formVenta.tipo_entrega === "Forza") ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200"}`}>
                <label className="block text-[10px] font-black text-gray-700 uppercase mb-1">
@@ -346,11 +339,10 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
             </div>
             <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl">
                <label className="block text-[10px] font-black text-orange-800 uppercase mb-1">Descuento ($)</label>
-               <input type="number" step="0.01" value={formVenta.descuento} onFocus={(e) => e.target.select()} onChange={(e) => manejarCambioVenta("descuento", e.target.value)} className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-orange-600 text-orange-600" placeholder="0.00" />
+               <input type="number" step="0.01" max={totalProductos} value={formVenta.descuento} onFocus={(e) => e.target.select()} onChange={(e) => manejarCambioVenta("descuento", e.target.value)} className="w-full bg-white border-2 border-orange-200 rounded-xl px-3 py-2 text-sm font-black outline-none focus:border-orange-600 text-orange-600" placeholder="0.00" />
             </div>
           </div>
 
-          {/* CAMPOS DE COMISIÓN INTERNA (Bloqueados si es agencia) */}
           <div className="grid grid-cols-2 gap-3 p-3 bg-gray-100/50 border rounded-2xl">
             <div>
               <label className="block text-[9px] font-bold text-gray-500 uppercase truncate mb-1">
@@ -389,7 +381,7 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
           </div>
           
           <button type="submit" disabled={carrito.length === 0} className="w-full bg-gray-900 text-white font-black py-4 rounded-xl hover:bg-black transition-colors text-sm shadow-md disabled:opacity-50 flex items-center justify-center gap-2">
-            <span>📊</span> Analizar Rentabilidad y Emitir
+            <span>📊</span> Emitir Ticket
           </button>
         </form>
       </div>
@@ -418,52 +410,46 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
         </div>
       )}
 
-      {/* --- MODAL 2: ANÁLISIS DE RENTABILIDAD Y CONFIRMACIÓN FINAL (CON TIMER DE ABORTO) --- */}
+      {/* --- MODAL 2: ANÁLISIS DE RENTABILIDAD Y CONFIRMACIÓN FINAL (CON TIMER) --- */}
       {mostrarAnalisis && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[150] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden flex flex-col">
             
-            {/* Cabecera del Modal */}
             <div className="bg-gray-900 text-white p-6 text-center relative overflow-hidden">
               <div className="absolute top-0 right-0 w-40 h-40 bg-blue-500 opacity-20 rounded-full blur-2xl -mr-10 -mt-10"></div>
-              <h2 className="text-2xl font-black relative z-10 mb-1">Análisis de Rentabilidad</h2>
-              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest relative z-10">Verificación Interna Confidencial</p>
+              <h2 className="text-2xl font-black relative z-10 mb-1">Verificación de Margen</h2>
+              <p className="text-gray-400 text-xs font-bold uppercase tracking-widest relative z-10">Auditoría Interna Confidencial</p>
             </div>
 
             <div className="p-6 sm:p-8 space-y-6">
               
-              {/* Resumen de Cliente vs Costos */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
                   <p className="text-[10px] font-black text-emerald-800 uppercase mb-1">El Cliente Paga</p>
                   <p className="text-3xl font-black text-emerald-600">${totalVentaCliente.toFixed(2)}</p>
-                  <p className="text-[9px] text-emerald-600/70 font-bold mt-1 leading-tight">Incluye envío y decuentos aplicados.</p>
                 </div>
                 
                 <div className="bg-red-50 rounded-2xl p-4 border border-red-100">
                   <p className="text-[10px] font-black text-red-800 uppercase mb-1">Tus Costos y Ded.</p>
                   <p className="text-3xl font-black text-red-600">-${(costoRealInversion + costoAgenciaFijo + comisionAgencia).toFixed(2)}</p>
-                  <p className="text-[9px] text-red-600/70 font-bold mt-1 leading-tight">Mercadería + Agencias + Comisiones.</p>
                 </div>
               </div>
 
-              {/* Desglose de Deducciones Fijas */}
               <div className="bg-gray-50 rounded-xl p-4 border border-gray-200 space-y-2">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold text-gray-500">Inversión Mercadería (FIFO):</span>
                   <span className="font-black text-gray-800">-${costoRealInversion.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-gray-500">Agencia / Transporte ({formVenta.tipo_entrega}):</span>
+                  <span className="font-bold text-gray-500">Transporte ({formVenta.tipo_entrega}):</span>
                   <span className="font-black text-red-500">-${costoAgenciaFijo.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
-                  <span className="font-bold text-gray-500">Comisión Manejo Efectivo:</span>
+                  <span className="font-bold text-gray-500">Comisión / Pos:</span>
                   <span className="font-black text-red-500">-${comisionAgencia.toFixed(2)}</span>
                 </div>
               </div>
 
-              {/* GANANCIA REAL FINAL */}
               <div className={`p-5 rounded-2xl flex justify-between items-center shadow-inner border-2 ${gananciaNetaReal > 0 ? "bg-blue-50 border-blue-200" : "bg-orange-50 border-orange-200"}`}>
                 <div>
                   <p className={`text-[11px] font-black uppercase tracking-wider mb-1 ${gananciaNetaReal > 0 ? "text-blue-800" : "text-orange-800"}`}>Ganancia Neta Libre</p>
@@ -476,7 +462,6 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
                 </div>
               </div>
 
-              {/* ZONA DE BOTONES Y TIMER DE SEGURIDAD */}
               <div className="pt-2">
                 {!iniciandoCuentaRegresiva ? (
                   <div className="flex gap-3">
@@ -489,14 +474,9 @@ export default function ModuloCaja({ productos, lotes, recargarDatos, onTicketGe
                   </div>
                 ) : (
                   <div className="relative">
-                    {/* Barra de progreso de fondo */}
                     <div className="absolute inset-0 bg-red-100 rounded-xl overflow-hidden">
-                      <div 
-                        className="h-full bg-red-500 transition-all ease-linear" 
-                        style={{ width: `${((3 - segundosRestantes) / 3) * 100}%`, transitionDuration: '1000ms' }}
-                      ></div>
+                      <div className="h-full bg-red-500 transition-all ease-linear" style={{ width: `${((3 - segundosRestantes) / 3) * 100}%`, transitionDuration: '1000ms' }}></div>
                     </div>
-                    {/* Botón de Cancelar sobre la barra */}
                     <button onClick={cancelarTimer} className="relative z-10 w-full flex items-center justify-center gap-2 text-white font-black text-lg py-4 shadow-lg hover:brightness-110 transition-all">
                       <span className="text-2xl">🛑</span> CANCELAR EMISIÓN ({segundosRestantes}s)
                     </button>

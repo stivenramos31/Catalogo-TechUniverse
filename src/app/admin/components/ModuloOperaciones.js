@@ -111,12 +111,13 @@ export default function ModuloOperaciones({ productos }) {
           {pestaña === "lotes" && <ModuloInventario productos={productos} lotes={lotes} recargarDatos={cargarDatos} />}
           {pestaña === "ventas" && <ModuloCaja productos={productos} lotes={lotes} recargarDatos={cargarDatos} onTicketGenerado={prepararTicket} />}
           {pestaña === "guias" && <ModuloGuias productos={productos} lotes={lotes} />}
+          {/* AQUÍ SE PASA EL PROP PRODUCTOS AL DASHBOARD */}
           {pestaña === "estadisticas" && <ModuloDashboard ventas={ventas} lotes={lotes} productos={productos} />}
           {pestaña === "historial" && <ModuloHistorial ventas={ventas} productos={productos} onVerTicket={prepararTicket} recargarDatos={cargarDatos} />}
         </>
       )}
 
-      {/* --- MODAL DEL TICKET GENERADOR DE VENTAS (SE MANTIENE INTACTO) --- */}
+      {/* --- MODAL DEL TICKET GENERADOR DE VENTAS (OPTIMIZADO) --- */}
       {ticketActual && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[70] flex items-center justify-center p-4 animate-fade-in">
           <div className="bg-white rounded-3xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col md:flex-row shadow-2xl">
@@ -128,7 +129,7 @@ export default function ModuloOperaciones({ productos }) {
                   <h1 className="text-2xl font-black mb-1 leading-none tracking-tighter">TECH UNIVERSE</h1>
                   <p className="text-[11px] font-bold">Tecnología y Herramientas</p>
                   <p className="text-[11px]">San Miguel, El Salvador</p>
-                  <p className="text-[11px]">WhatsApp: +503 0000-0000</p>
+                  <p className="text-[11px]">WhatsApp: +503 7600-0000</p>
                 </div>
                 
                 <div className="text-[11px] mb-3 border-b-2 border-dashed border-gray-400 pb-3">
@@ -153,6 +154,7 @@ export default function ModuloOperaciones({ productos }) {
                   ))}
                 </div>
                 
+                {/* ZONA DE DESGLOSE FINANCIERO OPTIMIZADA */}
                 <div className="text-[12px] font-normal border-t border-dashed border-gray-400 pt-2 mb-3 space-y-1">
                   <div className="flex justify-between text-right">
                      <span className="flex-1 font-bold">SUBTOTAL:</span>
@@ -160,9 +162,9 @@ export default function ModuloOperaciones({ productos }) {
                   </div>
                   
                   {ticketActual.descuento > 0 && (
-                    <div className="flex justify-between text-right">
-                       <span className="flex-1 text-gray-600">DESCUENTO:</span>
-                       <span className="w-20 text-gray-600">-${ticketActual.descuento.toFixed(2)}</span>
+                    <div className="flex justify-between text-right text-gray-600">
+                       <span className="flex-1 font-bold">DESCUENTO APLICADO:</span>
+                       <span className="w-20 font-black">-${ticketActual.descuento.toFixed(2)}</span>
                     </div>
                   )}
                   
@@ -174,17 +176,25 @@ export default function ModuloOperaciones({ productos }) {
                   )}
                 </div>
                 
-                <div className="text-right text-[16px] font-black pt-2 border-t-2 border-black">
-                  <p>TOTAL A PAGAR: ${ticketActual.total.toFixed(2)}</p>
+                <div className="text-right pt-3 border-t-2 border-black bg-gray-50 px-3 pb-3 rounded-b-xl">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-widest mb-1 text-center font-bold">Total a Pagar</p>
+                  <p className="text-4xl text-center font-black leading-none tracking-tighter">${ticketActual.total.toFixed(2)}</p>
+                  
+                  {ticketActual.descuento > 0 && (
+                     <p className="text-[9px] text-emerald-700 text-center mt-3 uppercase tracking-wider font-black bg-emerald-100/50 py-1.5 rounded-lg border border-emerald-200/50">
+                       ¡Felicidades! Ahorraste ${ticketActual.descuento.toFixed(2)} en tu compra.
+                     </p>
+                  )}
                 </div>
                 
                 <div className="text-center text-[11px] mt-6">
-                  <p className="mb-4 font-black">¡GRACIAS POR SU COMPRA!</p>
-                  <p className="mb-2">Escanee para ver su comprobante:</p>
+                  <p className="mb-3 font-black text-sm uppercase">¡Gracias por su compra!</p>
                   <div className="flex justify-center mb-2">
-                    <QRCodeCanvas value={`${baseUrl}/comprobante/${ticketActual.id}`} size={120} level="H" />
+                    <div className="p-1.5 border-2 border-black rounded-2xl bg-white shadow-sm">
+                      <QRCodeCanvas value={`${baseUrl}/comprobante/${ticketActual.id}`} size={110} level="H" />
+                    </div>
                   </div>
-                  <p className="mt-5 text-[9px] text-gray-500 font-bold uppercase">Este documento es para control interno.</p>
+                  <p className="mt-3 text-[9px] text-gray-500 font-bold uppercase">Escanee el código QR para garantía.</p>
                 </div>
               </div>
 
@@ -192,7 +202,7 @@ export default function ModuloOperaciones({ productos }) {
             
             <div className="p-6 md:p-10 w-full md:w-1/2 flex flex-col justify-center bg-gray-50 border-l">
               <h3 className="text-2xl font-black text-gray-900 mb-2">Tu Ticket está listo</h3>
-              <p className="text-sm text-gray-500 mb-8">El PDF genera letras en Alta Resolución. El costo de envío ahora está separado visualmente del producto.</p>
+              <p className="text-sm text-gray-500 mb-8">El PDF genera letras en Alta Resolución. El costo de envío y los descuentos ahora están separados visualmente del producto.</p>
               <div className="space-y-3">
                 <button onClick={exportarTicketImagen} className="w-full bg-[#0f3faf] text-white font-black py-4 rounded-xl shadow-lg hover:bg-blue-800 flex items-center justify-center gap-3 transition-transform active:scale-95">
                   <span className="text-xl">🖼️</span> Descargar Imagen (WhatsApp)

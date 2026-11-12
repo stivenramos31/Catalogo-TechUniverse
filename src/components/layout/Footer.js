@@ -40,19 +40,18 @@ export default function Footer() {
     cargarConfiguracion();
   }, [pathname]);
 
-  // Ocultar automáticamente en el panel /admin
   if (pathname?.startsWith("/admin")) {
     return null;
   }
 
   const numeroWhatsAppLimpio = config.whatsapp_ventas.replace(/\D/g, "");
-  const enlaceWhatsAppDirecto = `https://wa.me/${numeroWhatsAppLimpio}?text=${encodeURIComponent(
+  const enlaceWhatsAppDirecto = `https://wa.me{numeroWhatsAppLimpio}?text=${encodeURIComponent(
     "¡Hola TECH UNIVERSE! 👋 Vi su catálogo online y tengo una consulta."
   )}`;
 
   return (
     <footer className="bg-[#081d54] text-white mt-auto border-t-2 border-[#0f3faf]">
-      {/* 1. FRANJA DE CONFIANZA COMPACTA (En 1 sola fila tanto en Android como en PC) */}
+      {/* 1. FRANJA DE CONFIANZA COMPACTA */}
       <div className="bg-[#0f3faf] border-b border-blue-800 py-3 px-2.5 sm:px-6">
         <div className="max-w-7xl mx-auto grid grid-cols-3 gap-2 sm:gap-4">
           <div className="bg-blue-900/45 border border-blue-700/50 rounded-xl p-2 sm:p-3 flex flex-col sm:flex-row items-center text-center sm:text-left gap-1 sm:gap-3">
@@ -96,7 +95,7 @@ export default function Footer() {
       {/* 2. CUERPO COMPACTO DEL FOOTER */}
       <div className="max-w-7xl mx-auto py-6 sm:py-8 px-4 sm:px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
         
-        {/* Bloque Izquierdo: Marca + Botón WhatsApp (4 columnas en PC) */}
+        {/* Bloque Izquierdo: Marca + Botón WhatsApp */}
         <div className="lg:col-span-4 flex flex-col sm:flex-row lg:flex-col justify-between items-start sm:items-center lg:items-start gap-3 pb-4 lg:pb-0 border-b lg:border-b-0 border-blue-900/80">
           <div>
             <Link href="/" className="inline-flex items-center gap-2 font-black text-lg sm:text-xl tracking-wide text-white">
@@ -118,9 +117,8 @@ export default function Footer() {
           </a>
         </div>
 
-        {/* Bloque Central: 2 Columnas Lado a Lado en Android (Navegación + Contacto) */}
+        {/* Bloque Central: Navegación + Contacto */}
         <div className="lg:col-span-4 grid grid-cols-2 gap-4 text-xs">
-          {/* Columna A: Accesos */}
           <div>
             <h3 className="font-black text-[11px] uppercase tracking-wider text-blue-300 mb-2">
               Tienda
@@ -149,7 +147,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Columna B: Contacto Oficial */}
           <div>
             <h3 className="font-black text-[11px] uppercase tracking-wider text-blue-300 mb-2">
               Contacto
@@ -178,11 +175,11 @@ export default function Footer() {
           </div>
         </div>
 
-        {/* Bloque Derecho: Mapa de Cobertura El Salvador (4 columnas en PC) */}
+        {/* Bloque Derecho: Mapa de San Miguel, El Salvador */}
         <div className="lg:col-span-4 bg-blue-950/70 border border-blue-800/80 p-2.5 rounded-2xl">
           <div className="flex items-center justify-between mb-1.5 px-1">
             <span className="text-[11px] font-black text-white flex items-center gap-1.5">
-              <span>🇸🇻</span> Cobertura Nacional: El Salvador
+              <span>🇸🇻</span> Cobertura: San Miguel y El Salvador
             </span>
             <span className="text-[10px] bg-green-500/20 text-green-300 border border-green-500/30 px-2 py-0.5 rounded-full font-bold">
               Envíos Activos
@@ -190,24 +187,25 @@ export default function Footer() {
           </div>
           <div className="w-full h-28 sm:h-32 rounded-xl overflow-hidden border border-blue-800 relative bg-blue-900">
             <iframe
-              title="Mapa Cobertura El Salvador - Tech Universe"
-              src="https://www.google.com/maps?q=El+Salvador&z=8&output=embed"
+              title="Ubicación TECH UNIVERSE San Miguel"
+              src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d62078.83158384085!2d-88.21028926881367!3d13.478597411831261!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x8f7b2a70bc830dab%3A0x76ac9c406eec5592!2sSan%20Miguel!5e0!3m2!1ses-419!2ssv!4v1794511333946!5m2!1ses-419!2ssv"
               className="w-full h-full border-0"
+              allowFullScreen=""
               loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
+              referrerPolicy="strict-origin-when-cross-origin"
             />
           </div>
         </div>
 
       </div>
 
-      {/* 3. BARRA INFERIOR ULTRA COMPACTA */}
-      <div className="bg-[#051338] py-2.5 px-4 text-center text-[10px] sm:text-xs text-blue-300 border-t border-blue-900/50">
-        <div className="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
-          <p className="mx-auto sm:mx-0">
-            © {new Date().getFullYear()} <strong>TECH UNIVERSE</strong> • El Salvador.
+      {/* 3. BARRA INFERIOR DE COPYRIGHT */}
+      <div className="bg-[#05133b] border-t border-blue-900/60 py-3 px-4 sm:px-6 text-[11px] text-blue-300">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+          <p>
+            © {new Date().getFullYear()} <strong className="text-white">TECH UNIVERSE</strong> • El Salvador.
           </p>
-          <p className="mx-auto sm:mx-0 text-blue-400 font-semibold">
+          <p className="text-blue-200/80">
             Precios en USD ($) • Cotización Oficial Segura
           </p>
         </div>
