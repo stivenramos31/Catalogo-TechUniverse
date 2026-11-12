@@ -111,7 +111,7 @@ export default function ModuloOperaciones({ productos }) {
           {pestaña === "lotes" && <ModuloInventario productos={productos} lotes={lotes} recargarDatos={cargarDatos} />}
           {pestaña === "ventas" && <ModuloCaja productos={productos} lotes={lotes} recargarDatos={cargarDatos} onTicketGenerado={prepararTicket} />}
           {pestaña === "guias" && <ModuloGuias productos={productos} lotes={lotes} />}
-          {pestaña === "estadisticas" && <ModuloDashboard ventas={ventas} lotes={lotes} />}
+          {pestaña === "estadisticas" && <ModuloDashboard ventas={ventas} lotes={lotes} productos={productos} />}
           {pestaña === "historial" && <ModuloHistorial ventas={ventas} productos={productos} onVerTicket={prepararTicket} recargarDatos={cargarDatos} />}
         </>
       )}
