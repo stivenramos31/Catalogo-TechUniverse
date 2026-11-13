@@ -167,14 +167,40 @@ export default function DetalleProducto() {
   const compartirProducto = (red) => {
     const urlActual = typeof window !== "undefined" ? window.location.href : "";
     const texto = `Mira este producto en TECH UNIVERSE: ${producto.titulo}`;
+    
     if (red === "whatsapp") {
       window.open(
         `https://wa.me/?text=${encodeURIComponent(texto + " " + urlActual)}`,
         "_blank"
       );
     } else if (red === "copiar") {
-      navigator.clipboard.writeText(urlActual);
-      alert("¡Enlace copiado al portapapeles!");
+      // Método seguro y con fallback para entornos locales (HTTP)
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(urlActual).then(() => {
+          alert("¡Enlace copiado al portapapeles!");
+        }).catch(err => {
+          console.error("Error al copiar: ", err);
+          alert("Tu navegador bloqueó el portapapeles. La URL es: " + urlActual);
+        });
+      } else {
+        // Fallback antiguo para dispositivos sin HTTPS / red local
+        const textArea = document.createElement("textarea");
+        textArea.value = urlActual;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          alert("¡Enlace copiado al portapapeles (Modo compatibilidad)!");
+        } catch (err) {
+          console.error('Fallback: Oops, unable to copy', err);
+          alert("Copia manualmente este enlace: " + urlActual);
+        }
+        document.body.removeChild(textArea);
+      }
     }
   };
 

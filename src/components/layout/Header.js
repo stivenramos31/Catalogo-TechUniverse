@@ -13,7 +13,6 @@ export default function Header() {
   const router = useRouter();
   const { cart } = useCart();
   
-  const [menuAbierto, setMenuAbierto] = useState(false);
   const [config, setConfig] = useState({ logo_url: "", whatsapp_ventas: "50370000000" });
   
   // Estados para Búsqueda en Tiempo Real
@@ -32,7 +31,7 @@ export default function Header() {
       if (conf) setConfig({ logo_url: conf.logo_url || "", whatsapp_ventas: conf.whatsapp_ventas || "50370000000" });
 
       // 2. Mini-Catálogo para Búsqueda en Vivo (Rápido y ligero)
-      const { data: prods } = await supabase.from("productos").select("id, titulo, precio_actual, imagenes").eq("activo", true);
+      const { data: prods } = await supabase.from("productos").select("id, slug, titulo, precio_actual, imagenes").eq("activo", true);
       if (prods) setProductos(prods);
     };
 
@@ -86,7 +85,6 @@ export default function Header() {
     if (terminoBusqueda.trim() !== "") {
       router.push(`/catalogo?q=${encodeURIComponent(terminoBusqueda.trim())}`);
       setMostrarDropdown(false);
-      setMenuAbierto(false);
     }
   };
 
@@ -109,7 +107,7 @@ export default function Header() {
             {resultadosBuscador.map((prod) => (
               <Link 
                 key={prod.id} 
-                href={`/producto/${prod.id}`}
+                href={`/producto/${prod.slug || prod.id}`}
                 className="flex items-center gap-3 p-3 border-b border-gray-50 hover:bg-blue-50 transition-colors"
               >
                 <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1">
@@ -137,17 +135,28 @@ export default function Header() {
   return (
     <header className="bg-[#0f3faf] text-white sticky top-0 z-50 shadow-md">
       <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16 gap-4">
+        <div className="flex justify-between items-center h-16 gap-2 sm:gap-4">
           
-          {/* LOGO */}
+          {/* LOGO Y NOMBRE */}
           <div className="flex-shrink-0 flex items-center">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="flex items-center gap-2 sm:gap-3">
               {config.logo_url ? (
-                <div className="relative w-28 h-8 sm:w-32 sm:h-10">
-                  <Image src={config.logo_url} alt="Logo TECH UNIVERSE" fill className="object-contain object-left" sizes="128px" />
-                </div>
+                <>
+                  <div className="relative w-8 h-8 sm:w-10 sm:h-10 flex-shrink-0">
+                    <Image 
+                      src={config.logo_url} 
+                      alt="Icono TECH UNIVERSE" 
+                      fill 
+                      className="object-contain" 
+                      sizes="(max-width: 768px) 32px, 40px" 
+                    />
+                  </div>
+                  <span className="font-black text-lg sm:text-xl tracking-tight text-white whitespace-nowrap">
+                    TECH UNIVERSE
+                  </span>
+                </>
               ) : (
-                <span className="font-black text-lg sm:text-xl tracking-tight flex items-center gap-1 whitespace-nowrap">
+                <span className="font-black text-lg sm:text-xl tracking-tight flex items-center gap-1 whitespace-nowrap text-white">
                   <span>💻🛠️</span> TECH UNIVERSE
                 </span>
               )}
@@ -181,7 +190,7 @@ export default function Header() {
             <DropdownResultados />
           </div>
 
-          {/* ACCIONES DERECHA (WhatsApp y Carrito) */}
+          {/* ACCIONES DERECHA (WhatsApp y Carrito) - PC */}
           <div className="hidden md:flex items-center space-x-4 shrink-0">
             <a href={enlaceWhatsAppDirecto} target="_blank" rel="noopener noreferrer" className="text-sm font-bold bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors">
               💬 Ayuda
@@ -194,17 +203,25 @@ export default function Header() {
             </Link>
           </div>
 
-          {/* BOTÓN MENÚ MÓVIL */}
-          <div className="flex items-center md:hidden gap-4">
+          {/* 📱 ACCIONES MÓVIL: BOTÓN AYUDA Y CARRITO (Sin hamburguesa) */}
+          <div className="flex items-center md:hidden gap-3 shrink-0">
+            <a 
+              href={enlaceWhatsAppDirecto}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[11px] font-black bg-[#25D366] hover:bg-green-600 text-white px-2.5 py-1.5 rounded-lg flex items-center gap-1 transition-colors shadow-sm"
+            >
+              <span className="text-sm">💬</span> Ayuda
+            </a>
+            
             <Link href="/carrito" className="relative p-1">
-              <span className="text-xl">🛒</span>
+              <span className="text-2xl">🛒</span>
               {totalItemsCarrito > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full">{totalItemsCarrito}</span>
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[10px] font-black w-4 h-4 flex items-center justify-center rounded-full">
+                  {totalItemsCarrito}
+                </span>
               )}
             </Link>
-            <button onClick={() => setMenuAbierto(!menuAbierto)} className="text-white hover:text-blue-200 focus:outline-none">
-              <span className="text-2xl">{menuAbierto ? '✕' : '☰'}</span>
-            </button>
           </div>
         </div>
       </div>
@@ -226,18 +243,6 @@ export default function Header() {
         </form>
         <DropdownResultados />
       </div>
-
-      {/* MENÚ MÓVIL DESPLEGABLE */}
-      {menuAbierto && (
-        <div className="md:hidden bg-blue-900 border-t border-blue-800 absolute w-full animate-fade-in shadow-lg">
-          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 flex flex-col">
-            <Link href="/" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-bold hover:bg-blue-800">Inicio</Link>
-            <Link href="/catalogo" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-bold hover:bg-blue-800">Catálogo</Link>
-            <Link href="/ofertas" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-black text-amber-300 hover:bg-blue-800">🔥 Ofertas Flash</Link>
-            <a href={enlaceWhatsAppDirecto} target="_blank" rel="noopener noreferrer" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 mt-2 text-center rounded-md text-base font-bold bg-green-500 hover:bg-green-600 text-white">💬 Solicitar Ayuda</a>
-          </div>
-        </div>
-      )}
     </header>
   );
 }
