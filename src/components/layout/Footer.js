@@ -19,6 +19,7 @@ export default function Footer() {
   useEffect(() => {
     if (pathname?.startsWith("/admin")) return;
 
+    // 1. CARGA INICIAL DE DATOS
     const cargarConfiguracion = async () => {
       const { data: conf } = await supabase
         .from("configuracion_tienda")
@@ -38,6 +39,29 @@ export default function Footer() {
     };
 
     cargarConfiguracion();
+
+    // 2. ⚡ CONEXIÓN EN TIEMPO REAL CON EL MÓDULO PERFIL ⚡
+    const canalConfig = supabase
+      .channel('cambios-config-footer')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'configuracion_tienda', filter: 'id=eq.1' },
+        (payload) => {
+          const confNueva = payload.new;
+          setConfig({
+            whatsapp_ventas: confNueva.whatsapp_ventas || "50370000000",
+            telefono_visible: confNueva.telefono_visible || "+503 7600-0000",
+            correo_contacto: confNueva.correo_contacto || "contacto@techuniverse.com",
+            direccion_tienda: confNueva.direccion_tienda || "San Miguel, El Salvador",
+            horario_atencion: confNueva.horario_atencion || "Lun - Sáb: 8:00 AM - 6:00 PM",
+          });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canalConfig);
+    };
   }, [pathname]);
 
   if (pathname?.startsWith("/admin")) {
@@ -45,7 +69,8 @@ export default function Footer() {
   }
 
   const numeroWhatsAppLimpio = config.whatsapp_ventas.replace(/\D/g, "");
-  const enlaceWhatsAppDirecto = `https://wa.me{numeroWhatsAppLimpio}?text=${encodeURIComponent(
+  // CORRECCIÓN: Faltaba el '/' y el '$' en la variable
+  const enlaceWhatsAppDirecto = `https://wa.me/${numeroWhatsAppLimpio}?text=${encodeURIComponent(
     "¡Hola TECH UNIVERSE! 👋 Vi su catálogo online y tengo una consulta."
   )}`;
 

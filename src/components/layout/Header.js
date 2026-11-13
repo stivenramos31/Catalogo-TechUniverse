@@ -1,65 +1,243 @@
 "use client";
 
+import { useState, useEffect, useMemo, useRef } from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { supabase } from "../../lib/supabase";
 import { useCart } from "../../context/CartContext";
-import { useEffect, useState } from "react";
+import Fuse from "fuse.js";
 
 export default function Header() {
-  // ⚡ Extraemos cantidadTotal en lugar de cart
-  const { cantidadTotal } = useCart(); 
-  const [animar, setAnimar] = useState(false);
+  const pathname = usePathname();
+  const router = useRouter();
+  const { cart } = useCart();
+  
+  const [menuAbierto, setMenuAbierto] = useState(false);
+  const [config, setConfig] = useState({ logo_url: "", whatsapp_ventas: "50370000000" });
+  
+  // Estados para Búsqueda en Tiempo Real
+  const [productos, setProductos] = useState([]);
+  const [terminoBusqueda, setTerminoBusqueda] = useState("");
+  const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const buscadorRef = useRef(null);
+  const buscadorMovilRef = useRef(null);
 
-  // ⚡ Efecto que activa la animación por 300ms cada vez que la cantidad cambia
   useEffect(() => {
-    if (cantidadTotal > 0) {
-      setAnimar(true);
-      const timer = setTimeout(() => setAnimar(false), 300);
-      return () => clearTimeout(timer);
+    if (pathname?.startsWith("/admin")) return;
+
+    const cargarDatosHeader = async () => {
+      // 1. Configuración de Tienda
+      const { data: conf } = await supabase.from("configuracion_tienda").select("logo_url, whatsapp_ventas").eq("id", 1).maybeSingle();
+      if (conf) setConfig({ logo_url: conf.logo_url || "", whatsapp_ventas: conf.whatsapp_ventas || "50370000000" });
+
+      // 2. Mini-Catálogo para Búsqueda en Vivo (Rápido y ligero)
+      const { data: prods } = await supabase.from("productos").select("id, titulo, precio_actual, imagenes").eq("activo", true);
+      if (prods) setProductos(prods);
+    };
+
+    cargarDatosHeader();
+
+    // Actualización de Logo en vivo
+    const canalConfigHeader = supabase.channel('cambios-config-header')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'configuracion_tienda', filter: 'id=eq.1' }, (payload) => {
+          const confNueva = payload.new;
+          setConfig(prev => ({ ...prev, logo_url: confNueva.logo_url !== undefined ? confNueva.logo_url : prev.logo_url, whatsapp_ventas: confNueva.whatsapp_ventas || "50370000000" }));
+      }).subscribe();
+
+    return () => supabase.removeChannel(canalConfigHeader);
+  }, [pathname]);
+
+  // Cierra el cuadro de búsqueda si hacemos clic afuera
+  useEffect(() => {
+    const handleClickFuera = (e) => {
+      if (buscadorRef.current && !buscadorRef.current.contains(e.target) && buscadorMovilRef.current && !buscadorMovilRef.current.contains(e.target)) {
+        setMostrarDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickFuera);
+    return () => document.removeEventListener("mousedown", handleClickFuera);
+  }, []);
+
+  // Limpia el buscador al cambiar de página
+  useEffect(() => {
+    setMostrarDropdown(false);
+    setTerminoBusqueda("");
+  }, [pathname]);
+
+  if (pathname?.startsWith("/admin")) return null;
+
+  // Lógica Matemática de Fuse.js para el Header (Tiempo Real)
+  const resultadosBuscador = useMemo(() => {
+    if (!terminoBusqueda || terminoBusqueda.trim() === "") return [];
+    
+    const fuse = new Fuse(productos, {
+      keys: ['titulo'],
+      threshold: 0.15, // Estricto para no mostrar basura
+      ignoreLocation: true
+    });
+    
+    // Devolvemos solo los mejores 5 para no saturar la pantalla
+    return fuse.search(terminoBusqueda).slice(0, 5).map(res => res.item); 
+  }, [terminoBusqueda, productos]);
+
+  const manejarEnvioBusqueda = (e) => {
+    e.preventDefault();
+    if (terminoBusqueda.trim() !== "") {
+      router.push(`/catalogo?q=${encodeURIComponent(terminoBusqueda.trim())}`);
+      setMostrarDropdown(false);
+      setMenuAbierto(false);
     }
-  }, [cantidadTotal]);
+  };
+
+  const numeroWhatsAppLimpio = config.whatsapp_ventas.replace(/\D/g, "");
+  const enlaceWhatsAppDirecto = `https://wa.me/${numeroWhatsAppLimpio}?text=${encodeURIComponent("¡Hola TECH UNIVERSE! 👋 Necesito ayuda con mi compra.")}`;
+  const totalItemsCarrito = cart?.reduce((total, item) => total + item.cantidad, 0) || 0;
+
+  // Componente Reutilizable: Cuadro de Resultados Desplegable
+  const DropdownResultados = () => {
+    if (!mostrarDropdown || terminoBusqueda.trim() === "") return null;
+    
+    return (
+      <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-blue-100 overflow-hidden z-50 animate-fade-in text-gray-800">
+        {resultadosBuscador.length === 0 ? (
+          <div className="p-4 text-center text-sm font-bold text-gray-400">
+            No encontramos "{terminoBusqueda}"
+          </div>
+        ) : (
+          <div>
+            {resultadosBuscador.map((prod) => (
+              <Link 
+                key={prod.id} 
+                href={`/producto/${prod.id}`}
+                className="flex items-center gap-3 p-3 border-b border-gray-50 hover:bg-blue-50 transition-colors"
+              >
+                <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center shrink-0 p-1">
+                   <img src={prod.imagenes?.[0] || "/favicon.ico"} alt={prod.titulo} className="w-full h-full object-contain" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-black text-gray-900 truncate">{prod.titulo}</p>
+                  <p className="text-[11px] font-bold text-emerald-600">${parseFloat(prod.precio_actual || 0).toFixed(2)}</p>
+                </div>
+              </Link>
+            ))}
+            <button 
+              type="button"
+              onClick={manejarEnvioBusqueda}
+              className="w-full p-3 bg-gray-50 text-[#0f3faf] text-xs font-black hover:bg-gray-100 transition-colors flex justify-center items-center gap-1"
+            >
+              Ver todos los resultados <span>→</span>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <header className="bg-[#0f3faf] text-white shadow-md sticky top-0 z-50">
-      <div className="max-w-7xl mx-auto flex items-center justify-between p-4">
-        
-        {/* Logo y Enlaces */}
-        <div className="flex items-center gap-6">
-          <Link href="/" className="font-black text-xl md:text-2xl tracking-wider flex items-center gap-2">
-            <span>💻 🛠️</span> TECH UNIVERSE
-          </Link>
-          <nav className="hidden md:flex gap-4 text-sm font-bold">
-            <Link href="/" className="hover:text-blue-300 transition-colors">Inicio</Link>
-            <Link href="/catalogo" className="hover:text-blue-300 transition-colors">Catálogo</Link>
-            <Link href="/ofertas" className="hover:text-yellow-400 transition-colors flex items-center gap-1">🔥 Ofertas Flash</Link>
-          </nav>
-        </div>
-
-        {/* Barra de Búsqueda (Con el supresor de hidratación de Proton Pass) */}
-        <div suppressHydrationWarning className="hidden md:flex flex-1 max-w-2xl bg-white rounded-full overflow-hidden px-4 py-2 items-center shadow-inner mx-6">
-          <input 
-            type="text" 
-            placeholder="Buscar productos, marcas o modelos..." 
-            className="w-full text-gray-800 outline-none text-sm font-medium bg-transparent"
-          />
-          <button className="text-gray-400 hover:text-[#0f3faf]">🔍</button>
-        </div>
-
-        {/* Ícono del Carrito */}
-        <Link href="/carrito" className="relative p-2 hover:bg-blue-800 rounded-full transition-colors flex items-center">
-          <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
-          </svg>
+    <header className="bg-[#0f3faf] text-white sticky top-0 z-50 shadow-md">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between items-center h-16 gap-4">
           
-          {/* ⚡ Burbuja dinámica con animación */}
-          {cantidadTotal > 0 && (
-            <span 
-              className={`absolute -top-1 -right-1 bg-red-600 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-md transition-all duration-300 ease-out ${animar ? 'scale-150 bg-red-500' : 'scale-100'}`}
-            >
-              {cantidadTotal}
-            </span>
-          )}
-        </Link>
+          {/* LOGO */}
+          <div className="flex-shrink-0 flex items-center">
+            <Link href="/" className="flex items-center gap-2">
+              {config.logo_url ? (
+                <div className="relative w-28 h-8 sm:w-32 sm:h-10">
+                  <Image src={config.logo_url} alt="Logo TECH UNIVERSE" fill className="object-contain object-left" sizes="128px" />
+                </div>
+              ) : (
+                <span className="font-black text-lg sm:text-xl tracking-tight flex items-center gap-1 whitespace-nowrap">
+                  <span>💻🛠️</span> TECH UNIVERSE
+                </span>
+              )}
+            </Link>
+          </div>
+
+          {/* NAVEGACIÓN PC */}
+          <nav className="hidden xl:flex space-x-6 shrink-0">
+            <Link href="/" className="text-white hover:text-blue-200 font-bold transition-colors">Inicio</Link>
+            <Link href="/catalogo" className="text-white hover:text-blue-200 font-bold transition-colors">Catálogo</Link>
+            <Link href="/ofertas" className="text-amber-300 hover:text-amber-100 font-black transition-colors flex items-center gap-1">
+              <span>🔥</span> Ofertas Flash
+            </Link>
+          </nav>
+
+          {/* 🔍 BARRA DE BÚSQUEDA CENTRAL (PC) CON DROPDOWN */}
+          <div className="hidden md:flex flex-1 max-w-2xl mx-4 relative" ref={buscadorRef}>
+            <form onSubmit={manejarEnvioBusqueda} className="w-full relative">
+              <input
+                type="text"
+                value={terminoBusqueda}
+                onChange={(e) => { setTerminoBusqueda(e.target.value); setMostrarDropdown(true); }}
+                onFocus={() => setMostrarDropdown(true)}
+                placeholder="Buscar productos en tiempo real..."
+                className="w-full bg-white text-gray-900 rounded-full pl-5 pr-10 py-2.5 text-sm font-bold outline-none focus:ring-4 focus:ring-blue-400/50 shadow-inner transition-all"
+              />
+              <button type="submit" className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#0f3faf] transition-colors text-lg">
+                🔍
+              </button>
+            </form>
+            <DropdownResultados />
+          </div>
+
+          {/* ACCIONES DERECHA (WhatsApp y Carrito) */}
+          <div className="hidden md:flex items-center space-x-4 shrink-0">
+            <a href={enlaceWhatsAppDirecto} target="_blank" rel="noopener noreferrer" className="text-sm font-bold bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors">
+              💬 Ayuda
+            </a>
+            <Link href="/carrito" className="relative p-2 hover:bg-blue-800 rounded-full transition-colors">
+              <span className="text-2xl">🛒</span>
+              {totalItemsCarrito > 0 && (
+                <span className="absolute top-0 right-0 bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full border-2 border-[#0f3faf]">{totalItemsCarrito}</span>
+              )}
+            </Link>
+          </div>
+
+          {/* BOTÓN MENÚ MÓVIL */}
+          <div className="flex items-center md:hidden gap-4">
+            <Link href="/carrito" className="relative p-1">
+              <span className="text-xl">🛒</span>
+              {totalItemsCarrito > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full">{totalItemsCarrito}</span>
+              )}
+            </Link>
+            <button onClick={() => setMenuAbierto(!menuAbierto)} className="text-white hover:text-blue-200 focus:outline-none">
+              <span className="text-2xl">{menuAbierto ? '✕' : '☰'}</span>
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* 🔍 BARRA DE BÚSQUEDA MÓVIL CON DROPDOWN */}
+      <div className="md:hidden px-4 pb-3 bg-[#0f3faf] relative" ref={buscadorMovilRef}>
+        <form onSubmit={manejarEnvioBusqueda} className="relative w-full">
+          <input
+            type="text"
+            value={terminoBusqueda}
+            onChange={(e) => { setTerminoBusqueda(e.target.value); setMostrarDropdown(true); }}
+            onFocus={() => setMostrarDropdown(true)}
+            placeholder="Buscar productos..."
+            className="w-full bg-white text-gray-900 rounded-xl pl-4 pr-10 py-2.5 text-sm font-bold outline-none shadow-inner focus:ring-2 focus:ring-blue-300"
+          />
+          <button type="submit" className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-[#0f3faf] transition-colors text-lg">
+            🔍
+          </button>
+        </form>
+        <DropdownResultados />
+      </div>
+
+      {/* MENÚ MÓVIL DESPLEGABLE */}
+      {menuAbierto && (
+        <div className="md:hidden bg-blue-900 border-t border-blue-800 absolute w-full animate-fade-in shadow-lg">
+          <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3 flex flex-col">
+            <Link href="/" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-bold hover:bg-blue-800">Inicio</Link>
+            <Link href="/catalogo" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-bold hover:bg-blue-800">Catálogo</Link>
+            <Link href="/ofertas" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 rounded-md text-base font-black text-amber-300 hover:bg-blue-800">🔥 Ofertas Flash</Link>
+            <a href={enlaceWhatsAppDirecto} target="_blank" rel="noopener noreferrer" onClick={() => setMenuAbierto(false)} className="block px-3 py-2 mt-2 text-center rounded-md text-base font-bold bg-green-500 hover:bg-green-600 text-white">💬 Solicitar Ayuda</a>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

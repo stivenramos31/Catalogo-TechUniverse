@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useMemo } from "react";
 import Link from "next/link";
-import Image from "next/image"; // IMPORTANTE: Agregamos next/image para rendimiento
+import Image from "next/image";
 import { useSearchParams } from "next/navigation";
 import { useCart } from "../../context/CartContext";
+import Fuse from "fuse.js"; // 🚀 IMPORTAMOS LA BÚSQUEDA INTELIGENTE
 
-// Recibimos los productos y categorías ya cargados desde el Servidor
 function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
   const searchParams = useSearchParams();
   const busquedaUrl = searchParams.get("q") || "";
@@ -14,7 +14,6 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
 
   const { cart, agregarAlCarrito, eliminarDelCarrito } = useCart();
 
-  // Ya no usamos useEffect para cargar, usamos los props iniciales
   const [productos] = useState(productosIniciales || []);
   const [categorias] = useState(categoriasIniciales || []);
 
@@ -103,26 +102,43 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
 
   const idsActivos = obtenerIdsParaFiltrarProductos();
 
-  const productosFiltrados = productos
-    .filter((prod) => {
-      const coincideTexto =
-        prod.titulo?.toLowerCase().includes(busqueda.toLowerCase()) ||
-        prod.descripcion?.toLowerCase().includes(busqueda.toLowerCase());
-      const coincideCategoria = idsActivos.length === 0 || idsActivos.includes(Number(prod.categoria_id));
-      return coincideTexto && coincideCategoria;
-    })
-    .sort((a, b) => {
-      const precioA = parseFloat(a.precio_actual || 0);
-      const precioB = parseFloat(b.precio_actual || 0);
-      if (ordenarPor === "menor_precio") return precioA - precioB;
-      if (ordenarPor === "mayor_precio") return precioB - precioA;
-      if (ordenarPor === "descuento") {
-        const descA = parseFloat(a.precio_anterior || 0) > precioA ? (parseFloat(a.precio_anterior) - precioA) / parseFloat(a.precio_anterior) : 0;
-        const descB = parseFloat(b.precio_anterior || 0) > precioB ? (parseFloat(b.precio_anterior) - precioB) / parseFloat(b.precio_anterior) : 0;
-        return descB - descA;
-      }
-      return 0;
-    });
+  // 🚀 1. PASO NUEVO: BÚSQUEDA INTELIGENTE CON FUSE.JS
+  const productosBuscados = useMemo(() => {
+    if (!busqueda || busqueda.trim() === "") return productos;
+
+    const opcionesFuse = {
+      keys: ['titulo'], // Solo busca en el título para ser más exacto
+      threshold: 0.15,  // MUY ESTRICTO: Solo perdona errores pequeños de tipeo
+      ignoreLocation: true, 
+    };
+
+    const fuse = new Fuse(productos, opcionesFuse);
+    const resultados = fuse.search(busqueda);
+    return resultados.map(res => res.item); // Extrae solo los productos
+  }, [busqueda, productos]);
+
+
+  // ⚡ 2. PASO ACTUALIZADO: Filtrar Categorías sobre el resultado inteligente
+  const productosFiltrados = useMemo(() => {
+    return productosBuscados
+      .filter((prod) => {
+        const coincideCategoria = idsActivos.length === 0 || idsActivos.includes(Number(prod.categoria_id));
+        return coincideCategoria;
+      })
+      .sort((a, b) => {
+        const precioA = parseFloat(a.precio_actual || 0);
+        const precioB = parseFloat(b.precio_actual || 0);
+        if (ordenarPor === "menor_precio") return precioA - precioB;
+        if (ordenarPor === "mayor_precio") return precioB - precioA;
+        if (ordenarPor === "descuento") {
+          const descA = parseFloat(a.precio_anterior || 0) > precioA ? (parseFloat(a.precio_anterior) - precioA) / parseFloat(a.precio_anterior) : 0;
+          const descB = parseFloat(b.precio_anterior || 0) > precioB ? (parseFloat(b.precio_anterior) - precioB) / parseFloat(b.precio_anterior) : 0;
+          return descB - descA;
+        }
+        return 0; // Si es "recientes", Fuse.js ya los ordenó por relevancia o se quedan igual
+      });
+  }, [productosBuscados, idsActivos, ordenarPor]);
+
 
   const obtenerNombreCategoria = (catId) => {
     const cat = categorias.find((c) => Number(c.id) === Number(catId));
@@ -142,7 +158,6 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
 
   return (
     <div className="min-h-screen bg-[#f5f7fa] py-4 sm:py-8 px-3 sm:px-6 lg:px-8">
-      {/* 🚀 EL CAMBIO ESTÁ AQUÍ: De max-w-7xl a max-w-[1600px] w-full */}
       <div className="max-w-[1600px] w-full mx-auto">
         
         {/* 📱 BARRA COMPACTA EXCLUSIVA PARA ANDROID / MÓVIL */}
@@ -165,7 +180,7 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
             <div className="relative flex-1">
               <input
                 type="text"
-                placeholder="Buscar producto..."
+                placeholder="Busqueda rápida..."
                 value={busqueda}
                 onChange={(e) => setBusqueda(e.target.value)}
                 className="w-full bg-white border border-gray-200 rounded-xl pl-3.5 pr-8 py-2.5 text-xs font-bold text-gray-800 shadow-xs outline-none focus:border-[#0f3faf]"
@@ -287,7 +302,7 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
                     onChange={(e) => setOrdenarPor(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-xs font-black text-gray-800 bg-gray-50 outline-none focus:border-[#0f3faf]"
                   >
-                    <option value="recientes">✨ Más recientes</option>
+                    <option value="recientes">✨ Relevancia / Recientes</option>
                     <option value="menor_precio">💲 Precio: Menor a Mayor</option>
                     <option value="mayor_precio">💎 Precio: Mayor a Menor</option>
                     <option value="descuento">🔥 Mayor descuento</option>
@@ -394,21 +409,21 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
           <aside className="hidden lg:block w-72 flex-shrink-0 self-start sticky top-24 max-h-[calc(100vh-7rem)] overflow-y-auto space-y-5 pr-1">
             <div className="bg-white p-5 rounded-2xl shadow-xs border border-gray-100">
               <h3 className="font-black text-gray-900 text-base mb-3 pb-2 border-b">
-                Búsqueda
+                Búsqueda Inteligente
               </h3>
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Buscar producto..."
+                  placeholder="Ej: Multimetro, cautin..."
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
-                  className="w-full border border-gray-200 rounded-xl pl-3.5 pr-8 py-2.5 text-sm outline-none focus:border-[#0f3faf]"
+                  className="w-full border border-gray-200 rounded-xl pl-3.5 pr-8 py-2.5 text-sm outline-none focus:border-[#0f3faf] focus:ring-2 focus:ring-blue-100"
                 />
                 {busqueda && (
                   <button
                     type="button"
                     onClick={() => setBusqueda("")}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-black"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#0f3faf] text-xs font-black transition-colors"
                   >
                     ✕
                   </button>
@@ -511,9 +526,9 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
             <div className="flex flex-wrap justify-between items-center gap-3 mb-4 sm:mb-6">
               <div className="flex items-center gap-3">
                 <h1 className="text-xl sm:text-2xl font-black text-gray-900">Catálogo</h1>
-                <span className="bg-white border border-gray-200 text-gray-600 text-xs font-bold px-3.5 py-1 rounded-full shadow-2xs">
+                <span className="bg-white border border-gray-200 text-[#0f3faf] text-xs font-black px-3.5 py-1 rounded-full shadow-2xs">
                   {productosFiltrados.length}{" "}
-                  {productosFiltrados.length === 1 ? "producto" : "productos"}
+                  {productosFiltrados.length === 1 ? "resultado" : "resultados"}
                 </span>
               </div>
 
@@ -524,7 +539,7 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
                   onChange={(e) => setOrdenarPor(e.target.value)}
                   className="bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-xs font-bold text-gray-700 outline-none focus:border-[#0f3faf] shadow-2xs cursor-pointer"
                 >
-                  <option value="recientes">Más recientes</option>
+                  <option value="recientes">Relevancia / Recientes</option>
                   <option value="menor_precio">Precio: Menor a Mayor</option>
                   <option value="mayor_precio">Precio: Mayor a Menor</option>
                   <option value="descuento">Mayor descuento</option>
@@ -534,13 +549,14 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
 
             {productosFiltrados.length === 0 ? (
               <div className="bg-white rounded-2xl p-12 text-center border border-gray-100 shadow-xs">
-                <p className="text-gray-500 font-bold mb-3">
-                  No se encontraron productos con esos filtros.
+                <p className="text-gray-500 font-bold mb-3 text-lg">
+                  No se encontró nada para "{busqueda}".
                 </p>
+                <p className="text-sm text-gray-400 mb-6">Prueba con otra palabra o elimina los filtros.</p>
                 <button
                   type="button"
                   onClick={limpiarFiltros}
-                  className="bg-[#0f3faf] text-white text-xs font-black px-5 py-2.5 rounded-xl cursor-pointer"
+                  className="bg-[#0f3faf] text-white text-sm font-black px-6 py-3 rounded-xl cursor-pointer hover:bg-blue-800 transition-colors"
                 >
                   Ver todos los productos
                 </button>
@@ -574,7 +590,6 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
                       )}
 
                       <div>
-                        {/* 🚀 EL CAMBIO DE IMÁGENES: Padding (p-4) directo en la clase de la imagen para respetar márgenes internos */}
                         <Link
                           href={enlaceProducto}
                           className="block w-full aspect-square relative bg-white rounded-xl overflow-hidden mb-3 flex items-center justify-center"
@@ -672,7 +687,7 @@ function ContenidoCatalogoClient({ productosIniciales, categoriasIniciales }) {
 
 export default function CatalogoClient(props) {
   return (
-    <Suspense fallback={<div className="p-10 text-center font-bold text-gray-400">Cargando filtros...</div>}>
+    <Suspense fallback={<div className="p-10 text-center font-bold text-gray-400">Cargando catálogo...</div>}>
       <ContenidoCatalogoClient {...props} />
     </Suspense>
   );
